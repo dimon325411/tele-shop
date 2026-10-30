@@ -61,15 +61,15 @@ class Controller:
         if user.is_suspended:
             return Reply(t("error.suspended", lang))
         name = esc(first_name or username or "")
-        if created:
-            access = await self.c.subs.access_for(user)
-            if access.active and self.settings.personal_mode:
-                text = t("start.welcome_personal", lang, name=name)
-            elif access.active:
-                text = t("start.welcome_new", lang, name=name, plan=esc(access.plan.name),
-                         until=fmt_dt(access.subscription.expires_at, user.timezone, lang))
-            else:
-                text = t("start.welcome_back", lang, name=name)
+        access = await self.c.subs.access_for(user)
+        # Newcomers get the full welcome even if their first message was not /start
+        # (any message registers the user silently).
+        newcomer = created or not await self.c.searches.list(user)
+        if access.active and self.settings.personal_mode:
+            text = t("start.welcome_personal", lang, name=name)
+        elif newcomer and access.active:
+            text = t("start.welcome_new", lang, name=name, plan=esc(access.plan.name),
+                     until=fmt_dt(access.subscription.expires_at, user.timezone, lang))
         else:
             text = t("start.welcome_back", lang, name=name)
         return Reply(text, menu_rows(lang))

@@ -151,7 +151,7 @@ class OlxPersonalSource(SourceAdapter):
         self.fetcher = fetcher
 
     def capabilities(self) -> SourceCapabilities:
-        return SourceCapabilities(keywords=True, price=True, sort_newest=True,
+        return SourceCapabilities(keywords=True, price=True, sort_newest=True, listing_category=False,
                                   notes=["Tryb prywatny: tylko dla właściciela bota."])
 
     async def fetch(self, criteria: SearchCriteria, limit: int = PAGE_LIMIT) -> list[Listing]:

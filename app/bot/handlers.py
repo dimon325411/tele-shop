@@ -124,8 +124,19 @@ async def start_wizard(message: Message, user, state: FSMContext, container: Con
     wizard = SearchWizard(container.registry, user.language)
     wstate, reply = wizard.start(access.plan)
     await state.set_state(Wizard.active)
-    await state.update_data(wizard=wstate)
-    await message.answer(reply.text, reply_markup=markup(reply.buttons))
+    sent = await message.answer(reply.text, reply_markup=markup(reply.buttons))
+    await state.update_data(wizard=wstate, wizard_msg_id=sent.message_id)
+
+
+async def drop_old_buttons(message: Message, data: dict) -> None:
+    """Remove the inline keyboard of the previous wizard step so stale buttons can't be pressed."""
+    old_id = data.get("wizard_msg_id")
+    if not old_id:
+        return
+    try:
+        await message.bot.edit_message_reply_markup(chat_id=message.chat.id, message_id=old_id, reply_markup=None)
+    except TelegramBadRequest:  # already edited / too old
+        pass
 
 
 @router.message(Command("newsearch"))
@@ -142,8 +153,9 @@ async def wizard_text(message: Message, user, state: FSMContext, container: Cont
         return
     wizard = SearchWizard(container.registry, user.language)
     reply = wizard.on_text(wstate, message.text)
-    await state.update_data(wizard=wstate)
-    await message.answer(reply.text, reply_markup=markup(reply.buttons))
+    await drop_old_buttons(message, data)
+    sent = await message.answer(reply.text, reply_markup=markup(reply.buttons))
+    await state.update_data(wizard=wstate, wizard_msg_id=sent.message_id)
 
 
 @router.callback_query(F.data.startswith("wz:"))
@@ -171,7 +183,7 @@ async def wizard_callback(cb: CallbackQuery, user, state: FSMContext, container:
         await edit_or_send(cb, Reply(t("wizard.saved", user.language, name=esc(search.name),
                                        interval=format_interval(search.interval_seconds, user.language))))
         return
-    await state.update_data(wizard=wstate)
+    await state.update_data(wizard=wstate, wizard_msg_id=cb.message.message_id)
     await edit_or_send(cb, Reply(reply.text, reply.buttons))
 
 

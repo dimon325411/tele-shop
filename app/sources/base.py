@@ -44,6 +44,8 @@ class SourceCapabilities:
     radius: bool = False
     delivery: bool = False
     sort_newest: bool = False
+    # Whether listings from this source carry a category we can filter on locally.
+    listing_category: bool = True
     notes: list[str] = field(default_factory=list)
 
 

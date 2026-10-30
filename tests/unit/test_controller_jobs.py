@@ -34,7 +34,10 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Free Trial", r.text)
         self.assertIn("menu:new", callbacks(r))
         r2 = await self.ctl.start(111, "ala", "Ala")
-        self.assertIn("Witaj ponownie", r2.text)
+        self.assertIn("okres próbny", r2.text)  # still no searches -> full welcome again
+        await self.app.searches.create(await self._user(), draft())
+        r3 = await self.ctl.start(111, "ala", "Ala")
+        self.assertIn("Witaj ponownie", r3.text)
 
     async def test_static_pages(self):
         await self.ctl.start(111, "ala", "Ala")

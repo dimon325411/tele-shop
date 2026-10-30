@@ -157,7 +157,18 @@ class SearchWizard:
 
     def _advance(self, state: dict) -> Reply:
         state["step"] = STEPS[STEPS.index(state["step"]) + 1]
+        if state["step"] == "category" and not self._category_useful(state):
+            state["draft"]["category"] = None
+            state["step"] = STEPS[STEPS.index("category") + 1]
         return self.render(state)
+
+    def _category_useful(self, state: dict) -> bool:
+        """Skip the category step when no selected source provides listing categories (e.g. OLX)."""
+        for code in state["draft"]["sources"]:
+            adapter = self.registry.get(code)
+            if adapter is not None and adapter.capabilities().listing_category:
+                return True
+        return False
 
     def render(self, state: dict) -> Reply:
         lang, step, draft = self.lang, state["step"], state["draft"]

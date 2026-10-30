@@ -122,3 +122,38 @@ class ModeTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PersonalUxTests(unittest.IsolatedAsyncioTestCase):
+    def test_wizard_skips_category_for_olx_only(self):
+        from app.wizard import SearchWizard
+
+        reg = SourceRegistry.default(["mock"], personal_mode=True)
+        w = SearchWizard(reg)
+        state, _ = w.start(None)
+        w.on_text(state, "Rowery")
+        w.on_callback(state, "wz:src:mock")  # deselect preselected? (two sources -> nothing preselected)
+        state["draft"]["sources"] = ["olx"]
+        w.on_callback(state, "wz:src_done")
+        w.on_text(state, "rower")
+        w.on_callback(state, "wz:skip")
+        w.on_callback(state, "wz:skip")
+        self.assertEqual(state["step"], "price")  # category step skipped: OLX gives no categories
+        state2, _ = w.start(None)
+        w.on_text(state2, "Mix")
+        state2["draft"]["sources"] = ["olx", "mock"]
+        w.on_callback(state2, "wz:src_done")
+        w.on_text(state2, "rower")
+        w.on_callback(state2, "wz:skip")
+        w.on_callback(state2, "wz:skip")
+        self.assertEqual(state2["step"], "category")  # mock listings have categories
+
+    async def test_personal_welcome_after_silent_registration(self):
+        from app.controller import Controller
+        from tests.unit.test_controller_jobs import container
+
+        settings = Settings(admin_ids=[999], personal_mode=True, enabled_sources=["mock"])
+        app = await App(settings=settings).setup()
+        await app.users.register(999, "owner", "Owner")  # first message was "Hello", not /start
+        reply = await Controller(container(app)).start(999, "owner", "Owner")
+        self.assertIn("prywatny bot", reply.text)
