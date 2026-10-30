@@ -127,6 +127,8 @@ MESSAGES: dict[str, str] = {
     "wizard.btn_interval": "⏱ Częstotliwość: {interval}",
     "wizard.btn_unknown_on": "❔ Ogłoszenia bez danych: wysyłaj",
     "wizard.btn_unknown_off": "❔ Ogłoszenia bez danych: pomijaj",
+    "wizard.btn_desc_on": "📄 Szukaj słów także w opisie: tak",
+    "wizard.btn_desc_off": "📄 Szukaj słów także w opisie: nie (tylko tytuł)",
     "wizard.btn_fuzzy_on": "🔤 Tolerancja literówek: włączona",
     "wizard.btn_fuzzy_off": "🔤 Tolerancja literówek: wyłączona",
     "category.any": "Dowolna",

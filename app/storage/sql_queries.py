@@ -73,16 +73,16 @@ ORDER BY id LIMIT :limit
 
 SEARCH_COLUMNS = (
     "id, user_id, name, sources, keywords, alt_keywords, excluded_keywords, category, price_min, price_max, "
-    "currency, condition, city, region, radius_km, delivery, include_unknown, fuzzy, interval_seconds, is_active, "
+    "currency, condition, city, region, radius_km, delivery, include_unknown, fuzzy, match_description, interval_seconds, is_active, "
     "paused_reason, baseline_done, consecutive_failures, last_checked_at, last_success_at, next_check_at, created_at"
 )
 CREATE_SEARCH = f"""
 INSERT INTO searches (user_id, name, sources, keywords, alt_keywords, excluded_keywords, category, price_min,
                       price_max, currency, condition, city, region, radius_km, delivery, include_unknown, fuzzy,
-                      interval_seconds, is_active, next_check_at, created_at, updated_at)
+                      match_description, interval_seconds, is_active, next_check_at, created_at, updated_at)
 VALUES (:user_id, :name, CAST(:sources AS text[]), CAST(:keywords AS text[]), CAST(:alt_keywords AS text[]),
         CAST(:excluded_keywords AS text[]), :category, :price_min, :price_max, :currency, :condition, :city,
-        :region, :radius_km, :delivery, :include_unknown, :fuzzy, :interval_seconds, :is_active, :next_check_at,
+        :region, :radius_km, :delivery, :include_unknown, :fuzzy, :match_description, :interval_seconds, :is_active, :next_check_at,
         :created_at, :created_at)
 RETURNING {SEARCH_COLUMNS}
 """
@@ -269,7 +269,7 @@ USER_UPDATABLE = {
 }
 SEARCH_UPDATABLE = {
     "name", "sources", "keywords", "alt_keywords", "excluded_keywords", "category", "price_min", "price_max",
-    "currency", "condition", "city", "region", "radius_km", "delivery", "include_unknown", "fuzzy",
+    "currency", "condition", "city", "region", "radius_km", "delivery", "include_unknown", "fuzzy", "match_description",
     "interval_seconds", "is_active", "paused_reason", "baseline_done", "consecutive_failures", "last_checked_at",
     "last_success_at", "next_check_at",
 }

@@ -9,14 +9,53 @@
       "created_time": "2026-10-24T12:01:00+02:00",
       "last_refresh_time": "2026-10-24T12:01:00+02:00",
       "params": [
-        {"key": "price", "name": "Cena", "type": "price",
-         "value": {"value": 1200, "type": "arranged", "currency": "PLN", "negotiable": true, "label": "1 200 zł"}},
-        {"key": "state", "name": "Stan", "type": "select", "value": {"key": "used", "label": "Używane"}}
+        {
+          "key": "price",
+          "name": "Cena",
+          "type": "price",
+          "value": {
+            "value": 1200,
+            "type": "arranged",
+            "currency": "PLN",
+            "negotiable": true,
+            "label": "1 200 zł"
+          }
+        },
+        {
+          "key": "state",
+          "name": "Stan",
+          "type": "select",
+          "value": {
+            "key": "used",
+            "label": "Używane"
+          }
+        }
       ],
-      "location": {"city": {"id": 8959, "name": "Kraków"}, "region": {"id": 4, "name": "Małopolskie"}},
-      "map": {"lat": 50.06, "lon": 19.94, "radius": 2},
-      "delivery": {"rock": {"active": true, "mode": "BuyWithDelivery"}},
-      "category": {"id": 767, "type": "goods"}
+      "location": {
+        "city": {
+          "id": 8959,
+          "name": "Kraków"
+        },
+        "region": {
+          "id": 4,
+          "name": "Małopolskie"
+        }
+      },
+      "map": {
+        "lat": 50.06,
+        "lon": 19.94,
+        "radius": 2
+      },
+      "delivery": {
+        "rock": {
+          "active": true,
+          "mode": "BuyWithDelivery"
+        }
+      },
+      "category": {
+        "id": 767,
+        "type": "goods"
+      }
     },
     {
       "id": 900000002,
@@ -24,11 +63,36 @@
       "title": "Rowerek dziecięcy",
       "created_time": "2026-10-24T11:40:00+02:00",
       "params": [
-        {"key": "price", "name": "Cena", "type": "price", "value": {"value": 0, "currency": "PLN", "label": "Za darmo"}},
-        {"key": "state", "name": "Stan", "type": "select", "value": {"key": "new", "label": "Nowe"}}
+        {
+          "key": "price",
+          "name": "Cena",
+          "type": "price",
+          "value": {
+            "value": 0,
+            "currency": "PLN",
+            "label": "Za darmo"
+          }
+        },
+        {
+          "key": "state",
+          "name": "Stan",
+          "type": "select",
+          "value": {
+            "key": "new",
+            "label": "Nowe"
+          }
+        }
       ],
-      "location": {"city": {"name": "Wrocław"}},
-      "delivery": {"rock": {"active": false}}
+      "location": {
+        "city": {
+          "name": "Wrocław"
+        }
+      },
+      "delivery": {
+        "rock": {
+          "active": false
+        }
+      }
     },
     {
       "id": 900000003,
@@ -41,7 +105,24 @@
       "title": "Brak linku — musi zostać pominięte"
     }
   ],
-  "links": {"self": {"href": "https://www.olx.pl/api/v1/offers/?offset=0&limit=40"},
-            "next": {"href": "https://www.olx.pl/api/v1/offers/?offset=40&limit=40"}},
-  "metadata": {"total_elements": 4}
+  "links": {
+    "self": {
+      "href": "https://www.olx.pl/api/v1/offers/?offset=0&limit=40"
+    },
+    "next": {
+      "href": "https://www.olx.pl/api/v1/offers/?offset=40&limit=40"
+    }
+  },
+  "metadata": {
+    "total_elements": 4,
+    "source": {
+      "promoted": [],
+      "organic": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  }
 }

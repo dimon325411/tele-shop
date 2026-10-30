@@ -90,6 +90,7 @@ class SearchCriteria:
     delivery: Delivery = Delivery.ANY
     include_unknown: bool = True
     fuzzy: bool = False
+    match_description: bool = False  # keywords are searched in the title only unless enabled
 
 
 @dataclass

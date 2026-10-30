@@ -41,8 +41,9 @@ async def sql_repo():
 
     engine = make_engine(DB_URL)
     async with engine.begin() as conn:
-        for stmt in _split((ROOT / "migrations/sql/0001_initial.sql").read_text(encoding="utf-8")):
-            await conn.exec_driver_sql(stmt)
+        for migration in sorted((ROOT / "migrations/sql").glob("*.sql")):
+            for stmt in _split(migration.read_text(encoding="utf-8")):
+                await conn.exec_driver_sql(stmt)
     repo = SqlRepository(engine)
     yield repo
     await engine.dispose()

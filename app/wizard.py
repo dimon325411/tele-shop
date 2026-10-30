@@ -135,6 +135,8 @@ class SearchWizard:
                 return Reply("", finished=True)
             if action == "unknown":
                 draft["include_unknown"] = not draft["include_unknown"]
+            elif action == "desc":
+                draft["match_description"] = not draft.get("match_description", False)
             elif action == "fuzzy" and state["fuzzy_allowed"]:
                 draft["fuzzy"] = not draft["fuzzy"]
             elif action == "interval":
@@ -206,6 +208,8 @@ class SearchWizard:
         rows = [[Button(t("wizard.btn_interval", lang, interval=format_interval(interval, lang)), callback="wz:interval")],
                 [Button(t("wizard.btn_unknown_on" if draft["include_unknown"] else "wizard.btn_unknown_off", lang),
                         callback="wz:unknown")]]
+        rows.append([Button(t("wizard.btn_desc_on" if draft.get("match_description") else "wizard.btn_desc_off", lang),
+                            callback="wz:desc")])
         if state["fuzzy_allowed"]:
             rows.append([Button(t("wizard.btn_fuzzy_on" if draft["fuzzy"] else "wizard.btn_fuzzy_off", lang),
                                 callback="wz:fuzzy")])

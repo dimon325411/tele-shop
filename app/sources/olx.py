@@ -106,10 +106,15 @@ def parse_offers(payload: str | bytes | dict) -> list[Listing]:
     items = data.get("data") if isinstance(data, dict) else None
     if not isinstance(items, list):
         raise SourceLayoutChanged("OLX response has no 'data' list")
+    promoted: set[int] = set()
+    meta = data.get("metadata") if isinstance(data, dict) else None
+    source_meta = meta.get("source") if isinstance(meta, dict) else None
+    if isinstance(source_meta, dict) and isinstance(source_meta.get("promoted"), list):
+        promoted = {i for i in source_meta["promoted"] if isinstance(i, int)}
     listings: list[Listing] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or index in promoted:
+            continue  # paid placements are shown regardless of date; organic results follow refresh time
         offer_id, url, title = item.get("id"), item.get("url"), item.get("title")
         if offer_id is None or not isinstance(url, str) or not isinstance(title, str):
             continue  # never invent missing identifiers or links
@@ -137,7 +142,7 @@ def parse_offers(payload: str | bytes | dict) -> list[Listing]:
             posted_at=_dt(item.get("created_time")),
             is_test=False,
         ))
-    if items and not listings:
+    if items and not listings and len(promoted) < len(items):
         raise SourceLayoutChanged("OLX items present but none could be parsed")
     return listings
 

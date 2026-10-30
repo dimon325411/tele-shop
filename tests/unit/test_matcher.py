@@ -73,9 +73,17 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(match(L("iPhone 14 uszkodzony ekran"), c).rejected_by, "excluded")
         self.assertEqual(match(L("iPhone na części"), c).rejected_by, "excluded")
 
-    def test_description_is_searched(self):
-        c = SearchCriteria(keywords=["kross"])
-        self.assertTrue(match(L("Rower górski", description="Marka Kross, stan dobry"), c).matched)
+    def test_description_only_when_enabled(self):
+        listing = L("Rower górski", description="Marka Kross, stan dobry")
+        self.assertFalse(match(listing, SearchCriteria(keywords=["kross"])).matched)  # title only by default
+        self.assertTrue(match(listing, SearchCriteria(keywords=["kross"], match_description=True)).matched)
+        # accessories mentioning bikes only in the description are not matched by default (live OLX case)
+        battery = L("Bateria powertube 400 bosch", description="do roweru elektrycznego")
+        self.assertFalse(match(battery, SearchCriteria(keywords=["rower"])).matched)
+
+    def test_excluded_words_always_checked_in_description(self):
+        c = SearchCriteria(keywords=["rower"], excluded_keywords=["uszkodzony"])
+        self.assertFalse(match(L("Rower Kross", description="rama uszkodzony"), c).matched)
 
     def test_price_bounds(self):
         c = SearchCriteria(keywords=["rower"], price_min=Decimal("100"), price_max=Decimal("500"))

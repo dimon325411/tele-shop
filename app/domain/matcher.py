@@ -5,6 +5,8 @@ Rules, in order (the first failing rule rejects the listing):
 2. excluded phrases must be absent;
 3. every main keyword phrase must be present;
 4. at least one alternative phrase must be present (if any are given);
+   (main and alternative keywords are searched in the title, and in the description only when
+   ``match_description`` is on; excluded phrases are always searched in title + description);
 5. price within bounds; a listing *without* a price is rejected when bounds are set;
 6. category / condition / location / delivery: if the listing does not provide the field,
    it passes only when ``include_unknown`` is true (the reason says "unknown").
@@ -96,15 +98,17 @@ def match(listing: Listing, criteria: SearchCriteria) -> MatchResult:
     def reject(rule: str) -> MatchResult:
         return MatchResult(False, reasons, rule)
 
-    text_tokens = tokens(f"{listing.title} {listing.description or ''}")
+    title_tokens = tokens(listing.title)
+    text_tokens = tokens(f"{listing.title} {listing.description or ''}") if criteria.match_description else title_tokens
 
     # 1. currency
     if listing.currency and criteria.currency and listing.currency.upper() != criteria.currency.upper():
         return reject("currency")
 
     # 2. excluded
+    full_tokens = tokens(f"{listing.title} {listing.description or ''}")
     for phrase in criteria.excluded_keywords:
-        if phrase_in_tokens(phrase, text_tokens, fuzzy=False):
+        if phrase_in_tokens(phrase, full_tokens, fuzzy=False):
             reasons.append(("reason.excluded", {"word": phrase}))
             return reject("excluded")
 

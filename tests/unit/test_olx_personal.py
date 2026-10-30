@@ -157,3 +157,13 @@ class PersonalUxTests(unittest.IsolatedAsyncioTestCase):
         await app.users.register(999, "owner", "Owner")  # first message was "Hello", not /start
         reply = await Controller(container(app)).start(999, "owner", "Owner")
         self.assertIn("prywatny bot", reply.text)
+
+
+class PromotedTests(unittest.TestCase):
+    def test_promoted_positions_are_skipped(self):
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        data["metadata"]["source"] = {"promoted": [0], "organic": [1, 2, 3]}
+        ids = [l.external_id for l in parse_offers(data)]
+        self.assertEqual(ids, ["900000002"])
+        data["data"] = data["data"][:1]
+        self.assertEqual(parse_offers(data), [])  # only an ad on the page is not a layout change

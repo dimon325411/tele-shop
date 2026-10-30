@@ -34,6 +34,7 @@ class SearchDraft:
     delivery: str = "any"
     include_unknown: bool = True
     fuzzy: bool = False
+    match_description: bool = False
     interval_seconds: int | None = None
 
     def to_dict(self) -> dict:
@@ -82,6 +83,7 @@ class SearchService:
                 currency=draft.currency, condition=Condition(draft.condition), city=draft.city,
                 region=draft.region, radius_km=draft.radius_km, delivery=Delivery(draft.delivery),
                 include_unknown=draft.include_unknown, fuzzy=draft.fuzzy,
+                match_description=draft.match_description,
             )
             search = Search(id=0, user_id=user.id, name=draft.name, sources=list(draft.sources), criteria=criteria,
                             interval_seconds=interval, is_active=True, next_check_at=now, created_at=now)

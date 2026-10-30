@@ -76,7 +76,7 @@ def _search(r) -> Search:
         excluded_keywords=list(r["excluded_keywords"] or []), category=r["category"], price_min=r["price_min"],
         price_max=r["price_max"], currency=r["currency"], condition=Condition(r["condition"]), city=r["city"],
         region=r["region"], radius_km=r["radius_km"], delivery=Delivery(r["delivery"]),
-        include_unknown=r["include_unknown"], fuzzy=r["fuzzy"],
+        include_unknown=r["include_unknown"], fuzzy=r["fuzzy"], match_description=r["match_description"],
     )
     return Search(
         id=r["id"], user_id=r["user_id"], name=r["name"], sources=list(r["sources"] or []), criteria=criteria,
@@ -230,7 +230,8 @@ class SqlRepository:
             keywords=list(c.keywords), alt_keywords=list(c.alt_keywords), excluded_keywords=list(c.excluded_keywords),
             category=c.category, price_min=c.price_min, price_max=c.price_max, currency=c.currency,
             condition=c.condition, city=c.city, region=c.region, radius_km=c.radius_km, delivery=c.delivery,
-            include_unknown=c.include_unknown, fuzzy=c.fuzzy, interval_seconds=search.interval_seconds,
+            include_unknown=c.include_unknown, fuzzy=c.fuzzy, match_description=c.match_description,
+            interval_seconds=search.interval_seconds,
             is_active=search.is_active, next_check_at=search.next_check_at, created_at=search.created_at,
         )
         return _search(r)

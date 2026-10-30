@@ -41,7 +41,8 @@ def check(label: str, got: str, expected: str) -> None:
 
 def main(dsn: str) -> None:
     psql(dsn, f"DROP DATABASE IF EXISTS {DB}; CREATE DATABASE {DB};", db=None)
-    psql(dsn, (ROOT / "migrations/sql/0001_initial.sql").read_text())
+    for migration in sorted((ROOT / "migrations/sql").glob("*.sql")):
+        psql(dsn, migration.read_text())
     psql(dsn, """
         INSERT INTO users (telegram_id) VALUES (1), (2);
         INSERT INTO plans (code, name, price_stars, duration_days, max_active_searches, allowed_sources,
