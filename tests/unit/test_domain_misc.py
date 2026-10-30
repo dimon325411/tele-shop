@@ -114,7 +114,10 @@ class PlanTests(unittest.TestCase):
 
     def test_defaults_are_sane(self):
         codes = [p.code for p in DEFAULT_PLANS]
-        self.assertEqual(codes, ["trial", "basic", "pro", "premium"])
+        self.assertEqual(codes, ["trial", "basic", "pro", "premium", "personal"])
+        personal = DEFAULT_PLANS[-1]
+        self.assertFalse(personal.is_active)  # never listed or sold
+        self.assertGreaterEqual(personal.min_interval_seconds, 600)
         self.assertTrue(all(p.min_interval_seconds >= 60 for p in DEFAULT_PLANS))
         self.assertEqual(sum(p.is_trial for p in DEFAULT_PLANS), 1)
 

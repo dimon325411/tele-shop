@@ -60,6 +60,9 @@ class Settings(BaseModel):
 
     # Sources. Real sources stay disabled until legal access is confirmed (docs/SOURCES.md).
     enabled_sources: list[str] = Field(default_factory=lambda: ["mock"])
+    # Personal mode: the bot serves ONLY the admins (ADMIN_IDS), sells nothing, and may read
+    # OLX public search results at a low rate (docs/PERSONAL_MODE.md). Commercial mode when false.
+    personal_mode: bool = False
     source_min_request_interval_seconds: float = 10.0
     source_timeout_seconds: float = 15.0
 
@@ -102,7 +105,8 @@ class Settings(BaseModel):
     def _sources(cls, value: object) -> list[str]:
         return [str(v).lower() for v in _split_csv(value)]
 
-    @field_validator("payments_live_confirmed", "crypto_enabled", "notify_on_first_run", mode="before")
+    @field_validator("payments_live_confirmed", "crypto_enabled", "notify_on_first_run", "personal_mode",
+                     mode="before")
     @classmethod
     def _bool(cls, value: object) -> bool:
         if isinstance(value, bool):
@@ -115,7 +119,14 @@ class Settings(BaseModel):
 
     @property
     def payments_available(self) -> bool:
+        if self.personal_mode:  # personal use: nothing is sold
+            return False
         return self.payments_mode is PaymentsMode.TEST or self.live_payments_allowed
+
+    @property
+    def real_sources_allowed(self) -> set[str]:
+        """Real marketplaces that may be fetched in the current mode."""
+        return {"olx"} if self.personal_mode else set()
 
     def is_admin(self, telegram_id: int) -> bool:
         return telegram_id in self.admin_ids

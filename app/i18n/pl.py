@@ -12,6 +12,11 @@ MESSAGES: dict[str, str] = {
         "ℹ️ Uwaga: obecnie działa tylko <b>źródło testowe</b>. Monitoring OLX.pl i Allegro Lokalnie "
         "jest wyłączony do czasu uzyskania zgody serwisów (/help)."
     ),
+    "start.welcome_personal": (
+        "👋 Cześć, {name}! To Twój prywatny bot.\n\n"
+        "Źródła: OLX.pl (publiczne wyniki wyszukiwania, sprawdzanie najczęściej co 10 min) i źródło testowe.\n"
+        "Jeśli OLX ograniczy dostęp, monitoring tego źródła zatrzyma się automatycznie."
+    ),
     "start.welcome_back": "👋 Witaj ponownie, {name}! Wybierz, co chcesz zrobić.",
     "menu.title": "Menu główne:",
     "btn.new_search": "➕ Nowe wyszukiwanie",
@@ -44,6 +49,7 @@ MESSAGES: dict[str, str] = {
     "error.generic": "😕 Coś poszło nie tak. Spróbuj ponownie za chwilę. Jeśli problem się powtarza: /support",
     "error.rate_limited": "⏳ Zbyt wiele poleceń. Odczekaj chwilę.",
     "error.suspended": "⛔ Twoje konto zostało zawieszone. Kontakt: /support",
+    "error.private_bot": "🔒 To jest prywatny bot. Nie przyjmuje nowych użytkowników.",
     "error.not_admin": "Ta komenda jest dostępna tylko dla administratora.",
 
     # --- help & legal

@@ -63,7 +63,9 @@ class Controller:
         name = esc(first_name or username or "")
         if created:
             access = await self.c.subs.access_for(user)
-            if access.active:
+            if access.active and self.settings.personal_mode:
+                text = t("start.welcome_personal", lang, name=name)
+            elif access.active:
                 text = t("start.welcome_new", lang, name=name, plan=esc(access.plan.name),
                          until=fmt_dt(access.subscription.expires_at, user.timezone, lang))
             else:

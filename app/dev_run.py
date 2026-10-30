@@ -49,13 +49,16 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
 
 async def main() -> None:
     settings = get_settings()
-    settings.enabled_sources = ["mock"]  # demo: never touch real marketplaces
+    if not settings.personal_mode:
+        settings.enabled_sources = ["mock"]  # demo: never touch real marketplaces
     setup_logging(settings.log_level)
-    log.warning("DEMO MODE: in-memory storage, data is lost on restart, only the test source is active")
+    log.warning("DEMO MODE: in-memory storage, data is lost on restart; sources: %s",
+                "mock + OLX (personal mode)" if settings.personal_mode else "test source only")
     container = build_container(settings, repo=MemoryRepository(), use_redis=False)
     await container.subs.seed_plans()
-    for plan in await container.repo.list_plans(active_only=False):  # demo: check every minute
-        await container.repo.update_plan(plan.code, min_interval_seconds=60)
+    for plan in await container.repo.list_plans(active_only=False):  # demo: mock checks every minute
+        if plan.code != "personal":  # real OLX stays at the personal-mode minimum (10 min)
+            await container.repo.update_plan(plan.code, min_interval_seconds=60)
     bot = make_bot(settings)
     container.attach_notifier(TelegramNotifier(bot))
     dp = Dispatcher(storage=MemoryStorage())

@@ -9,6 +9,10 @@
 > [`docs/SOURCES.md`](docs/SOURCES.md). Весь цикл работает и протестирован на **тестовом источнике**:
 > объявления помечены `[TEST]`, ссылки ведут на `example.invalid`.
 
+> **Личный режим** (`PERSONAL_MODE=true`): бот только для владельца, без оплаты, читает публичные
+> результаты поиска OLX раз в 10+ минут — см. [`docs/PERSONAL_MODE.md`](docs/PERSONAL_MODE.md) (там же риски).
+> Проверка доступа к OLX с вашего компьютера: `python3 scripts/olx_probe.py rower`.
+
 ## Что умеет первая версия
 * Регистрация, бесплатный пробный период (один раз), тарифы Basic / Pro / Premium (лимиты в БД, меняются
   командой администратора).
@@ -64,6 +68,7 @@ docker compose --profile tests run --rm tests
 ## Документация
 | Файл | О чём |
 |---|---|
+| [docs/PERSONAL_MODE.md](docs/PERSONAL_MODE.md) | личный режим с OLX: как работает, риски, включение |
 | [docs/SOURCES.md](docs/SOURCES.md) | правовая проверка OLX / Allegro Lokalnie, что нужно для включения |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | процессы, слои, цикл мониторинга |
 | [docs/PAYMENTS.md](docs/PAYMENTS.md) | Telegram Stars, режимы, возвраты, почему криптооплата заблокирована |

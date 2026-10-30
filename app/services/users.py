@@ -30,17 +30,33 @@ class UserService:
             if username != user.username:
                 fields["username"] = username
             await self.repo.update_user(user.id, **fields)
+            await self._ensure_personal_access(user)
             return (await self.repo.get_user(user.id)), False
         try:
             user = await self.repo.create_user(telegram_id, username, first_name, self.settings.default_language,
                                                self.settings.default_timezone, now)
         except IntegrityError:  # two /start at once
             return (await self.repo.get_user_by_telegram_id(telegram_id)), False
-        try:
-            await self.subs.start_trial(user)
-        except AccessDenied:
-            pass
+        if self.settings.personal_mode:
+            await self._ensure_personal_access(user)
+        else:
+            try:
+                await self.subs.start_trial(user)
+            except AccessDenied:
+                pass
         return (await self.repo.get_user(user.id)), True
+
+    async def _ensure_personal_access(self, user: User) -> None:
+        """Personal mode: the owner (admin) always has the hidden 'personal' plan; nobody else gets anything."""
+        if not self.settings.personal_mode or not self.settings.is_admin(user.telegram_id):
+            return
+        plan = await self.repo.get_plan_by_code("personal")
+        if plan is None:
+            return
+        current = await self.repo.get_active_subscription(user.id)
+        if current is not None and current.plan_id == plan.id and current.is_valid_at(self.clock()):
+            return
+        await self.subs.activate(user.id, plan, "admin", None)
 
     async def accept_terms(self, user: User) -> None:
         await self.repo.update_user(user.id, terms_accepted_at=self.clock())

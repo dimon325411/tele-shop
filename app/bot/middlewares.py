@@ -36,6 +36,16 @@ class AppMiddleware(BaseMiddleware):
         if from_user is None or from_user.is_bot:
             return None  # channel posts, other bots: ignored
 
+        if self.container.settings.personal_mode and not self.container.settings.is_admin(from_user.id):
+            # personal bot: strangers get one short message and are never registered
+            if isinstance(event, CallbackQuery):
+                await event.answer(t("error.private_bot"), show_alert=True)
+            elif isinstance(event, Message):
+                await event.answer(t("error.private_bot"))
+            elif isinstance(event, PreCheckoutQuery):
+                await event.answer(ok=False, error_message=t("error.private_bot"))
+            return None
+
         # Payments must always reach their handlers quickly (10 s deadline for pre-checkout).
         if isinstance(event, PreCheckoutQuery) or (isinstance(event, Message) and event.successful_payment):
             return await handler(event, data)

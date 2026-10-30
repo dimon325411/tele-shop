@@ -57,7 +57,8 @@ def build_container(settings: Settings, repo: Any = None, redis: Any = None, use
 
         redis = aioredis.from_url(settings.redis_url, decode_responses=True)
     locker: Locker = RedisLocker(redis) if redis is not None else MemoryLocker()
-    registry = SourceRegistry.default(settings.enabled_sources)
+    registry = SourceRegistry.default(settings.enabled_sources, settings.personal_mode,
+                                      settings.source_min_request_interval_seconds, settings.source_timeout_seconds)
     subs = SubscriptionService(repo)
     container = Container(
         settings=settings, repo=repo, registry=registry, locker=locker, subs=subs,
@@ -69,5 +70,6 @@ def build_container(settings: Settings, repo: Any = None, redis: Any = None, use
         retention=RetentionService(repo, settings),
         redis=redis,
     )
-    log.info("services ready: sources=%s payments=%s", registry.enabled_codes, settings.payments_mode.value)
+    log.info("services ready: sources=%s payments=%s personal_mode=%s", registry.enabled_codes,
+             settings.payments_mode.value, settings.personal_mode)
     return container

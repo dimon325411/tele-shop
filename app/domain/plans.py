@@ -65,6 +65,22 @@ DEFAULT_PLANS: list[Plan] = [
         price_drop_alerts=True,
         sort_order=3,
     ),
+    # Personal mode only (PERSONAL_MODE=true): never sold, given to the owner (admin) automatically.
+    Plan(
+        code="personal",
+        name="Personal",
+        price_stars=0,
+        duration_days=3650,
+        max_active_searches=20,
+        allowed_sources=["mock", "olx"],
+        min_interval_seconds=600,
+        max_notifications_per_day=500,
+        advanced_filters=True,
+        fuzzy_matching=True,
+        price_drop_alerts=True,
+        is_active=False,
+        sort_order=9,
+    ),
 ]
 
 EDITABLE_PLAN_FIELDS = {

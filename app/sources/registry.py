@@ -16,9 +16,18 @@ class SourceRegistry:
         self._enabled = [code for code in enabled if code in adapters]
 
     @classmethod
-    def default(cls, enabled: list[str]) -> "SourceRegistry":
+    def default(cls, enabled: list[str], personal_mode: bool = False,
+                min_request_interval: float = 10.0, timeout: float = 15.0) -> "SourceRegistry":
+        """Commercial mode: OLX/Allegro are disabled stubs. Personal mode: OLX reads public offers."""
+        olx: SourceAdapter = OlxSource()
+        if personal_mode:
+            from app.sources.http import PoliteFetcher
+            from app.sources.olx import OlxPersonalSource
+
+            olx = OlxPersonalSource(PoliteFetcher(min_interval=min_request_interval, timeout=timeout))
+            enabled = list(dict.fromkeys([*enabled, "olx"]))
         adapters: dict[str, SourceAdapter] = {
-            "olx": OlxSource(),
+            "olx": olx,
             "allegro_lokalnie": AllegroLokalnieSource(),
             "mock": MockSource(),
         }
