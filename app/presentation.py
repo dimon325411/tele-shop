@@ -59,6 +59,8 @@ def fmt_dt(value: datetime | None, tz: str, lang: str | None = None) -> str:
 def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[str, list[list[Button]]]:
     user, listing = item.user, item.listing
     lang = user.language
+    if item.kind == "free":
+        return _render_free(item, now)
     lines = [t("notify.price_drop" if item.kind == "price_drop" else "notify.new", lang, title=esc(listing.title))]
     currency = esc(listing.currency or "PLN")
     stats = getattr(item, "price_stats", None)
@@ -124,6 +126,28 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     row.append(Button(t("btn.notify_settings", lang), callback="settings:open"))
     buttons.append(row)
     return "\n".join(lines), buttons
+
+
+def _render_free(item: OutgoingListing, now: datetime) -> tuple[str, list[list[Button]]]:
+    """'Oddam za darmo' worth reselling: estimated value, when posted, where, short description."""
+    from app.domain.area import distance_km
+
+    user, listing, lang = item.user, item.listing, item.user.language
+    lines = [t("notify.free", lang, title=esc(listing.title))]
+    st = item.price_stats
+    if st is not None:
+        one = Decimal("1")
+        lines.append(t("notify.free_value", lang, median=fmt_price(st.median.quantize(one)), count=st.count,
+                       p25=fmt_price(st.p25.quantize(one)), p75=fmt_price(st.p75.quantize(one))))
+    facts = [t("notify.posted_at", lang, time=fmt_posted(listing, now, user.timezone, lang))]
+    if listing.city:
+        dist = distance_km(user, listing)
+        facts.append(t("notify.location", lang, location=esc(listing.city)) + (f" ({dist:.0f} km)" if dist is not None else ""))
+    lines.append(" · ".join(facts))
+    if listing.description:
+        snippet = " ".join(listing.description.split())[:200]
+        lines.append(f"<i>{esc(snippet)}{'…' if len(listing.description) > 200 else ''}</i>")
+    return "\n".join(lines), [[Button(t("btn.open_listing", lang), url=listing.url)]]
 
 
 def _signed_pct(diff: int) -> str:

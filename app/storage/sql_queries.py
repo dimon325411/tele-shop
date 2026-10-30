@@ -7,7 +7,7 @@ Ambiguous parameters carry explicit CASTs (needed for server-side binding anyway
 
 USER_COLUMNS = (
     "id, telegram_id, username, first_name, language, timezone, is_suspended, suspended_reason, trial_used, "
-    "bot_blocked, notify_price_drops, hide_new_sellers, deal_city, deal_radius_km, quiet_start_hour, quiet_end_hour, "
+    "bot_blocked, notify_price_drops, hide_new_sellers, deal_city, deal_radius_km, free_alerts, quiet_start_hour, quiet_end_hour, "
     "terms_accepted_at, created_at, "
     "last_seen_at, deleted_at"
 )
@@ -316,7 +316,7 @@ PURGE_RUNS = "DELETE FROM monitoring_runs WHERE started_at < :before"
 # Columns that may be changed through dynamic UPDATEs (whitelists; values are always bound parameters).
 USER_UPDATABLE = {
     "username", "first_name", "language", "timezone", "is_suspended", "suspended_reason", "trial_used",
-    "bot_blocked", "notify_price_drops", "hide_new_sellers", "deal_city", "deal_radius_km", "quiet_start_hour", "quiet_end_hour", "terms_accepted_at",
+    "bot_blocked", "notify_price_drops", "hide_new_sellers", "deal_city", "deal_radius_km", "free_alerts", "quiet_start_hour", "quiet_end_hour", "terms_accepted_at",
     "last_seen_at", "deleted_at",
 }
 SEARCH_UPDATABLE = {

@@ -354,6 +354,8 @@ async def cb_settings(cb: CallbackQuery, ctl: Controller, user, state: FSMContex
         await edit_or_send(cb, await ctl.toggle_new_sellers(user))
     elif action == "area":
         await edit_or_send(cb, ctl.area_cities(user))
+    elif action == "free":
+        await edit_or_send(cb, await ctl.toggle_free_alerts(user))
     elif action == "delete":
         await edit_or_send(cb, ctl.confirm_delete_account(user))
     elif action == "delete_confirm":

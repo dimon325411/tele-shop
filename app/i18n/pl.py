@@ -400,6 +400,12 @@ MESSAGES: dict[str, str] = {
     # --- settings
     "settings.title": "<b>Ustawienia</b>\n📍 Okazje z okolicy: {area}\nGodziny ciszy: {quiet}\nStrefa czasowa: {tz}",
     "btn.area": "📍 Okolica okazji: {area}",
+    "btn.free_on": "🎁 Oddam za darmo (≥200 zł): włączone",
+    "btn.free_off": "🎁 Oddam za darmo (≥200 zł): wyłączone",
+    "free.need_area": "🎁 Włączone — ale najpierw wybierz okolicę (📍), bo rzeczy za darmo trzeba odebrać osobiście.",
+    "free.enabled": "🎁 Będę sprawdzać „Oddam za darmo” w Twojej okolicy co ~15 min. Wyślę tylko rzeczy, które na OLX sprzedają się za min. 200 zł (mediana podobnych płatnych ofert).",
+    "notify.free": "🎁 <b>Za darmo:</b> {title}",
+    "notify.free_value": "💰 wartość ~<b>{median} zł</b> (mediana {count} płatnych ofert, typowo {p25}–{p75})",
     "area.whole_poland": "cała Polska",
     "area.whole_poland_btn": "🇵🇱 Cała Polska",
     "area.choose_city": "📍 <b>Skąd mają być okazje?</b>\nStatystyki i mediany liczę zawsze z całej Polski, ale linki (gorące okazje, „Okazje teraz”, świeże oferty, podsumowanie) pokażę tylko z wybranej okolicy.\n\nWybierz miasto:",

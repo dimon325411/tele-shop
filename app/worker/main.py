@@ -75,6 +75,10 @@ async def daily_digest(ctx: dict) -> int:
     return await jobs.daily_digest(ctx["container"])
 
 
+async def free_scan(ctx: dict) -> int:
+    return await jobs.free_scan(ctx["container"])
+
+
 def _every(seconds: int) -> set[int]:
     return set(range(0, 60, max(1, min(seconds, 60))))
 
@@ -87,6 +91,7 @@ class WorkerSettings:
         cron(expire_subscriptions, minute=set(range(0, 60, 5)), second=7, timeout=300),
         cron(retention, hour=3, minute=17, second=0, timeout=1800),
         cron(daily_digest, minute={2, 32}, second=11, timeout=300),
+        cron(free_scan, minute={7, 22, 37, 52}, second=31, timeout=300),
     ]
     on_startup = startup
     on_shutdown = shutdown

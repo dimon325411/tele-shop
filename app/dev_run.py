@@ -73,6 +73,13 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
         async with gate:
             await jobs.run_check(container, search_id)
 
+    async def gated(coro) -> None:
+        async with gate:
+            try:
+                await coro
+            except Exception:
+                log.exception("background job failed")
+
     async def enqueue(search_id: int) -> None:
         task = asyncio.create_task(gated_check(search_id))
         running.add(task)
@@ -87,6 +94,10 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
                 await jobs.expire_subscriptions(container)
             if ticks % 20 == 5:  # every ~5 minutes: evening summary when it is due
                 await jobs.daily_digest(container)
+            if ticks % 60 == 7:  # every ~15 minutes: "Oddam za darmo" (one at a time with the checks)
+                task = asyncio.create_task(gated(jobs.free_scan(container)))
+                running.add(task)
+                task.add_done_callback(running.discard)
             if ticks % 5760 == 1:  # about once a day: drop old data so the state file stays small
                 await jobs.retention(container)
         except Exception:

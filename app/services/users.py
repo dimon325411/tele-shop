@@ -74,6 +74,9 @@ class UserService:
             raise ValueError("unknown city or radius")
         await self.repo.update_user(user.id, deal_city=city, deal_radius_km=radius_km if city else None)
 
+    async def set_free_alerts(self, user: User, enabled: bool) -> None:
+        await self.repo.update_user(user.id, free_alerts=enabled)
+
     async def set_price_drop_alerts(self, user: User, enabled: bool) -> None:
         await self.repo.update_user(user.id, notify_price_drops=enabled)
 

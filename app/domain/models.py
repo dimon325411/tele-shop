@@ -132,6 +132,7 @@ class User:
     hide_new_sellers: bool = False
     deal_city: str | None = None  # app/domain/area.py code; None = links from the whole of Poland
     deal_radius_km: int | None = None
+    free_alerts: bool = False  # "Oddam za darmo" in the deal area worth >= 200 zł
     quiet_start_hour: int | None = None
     quiet_end_hour: int | None = None
     terms_accepted_at: datetime | None = None

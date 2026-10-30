@@ -254,6 +254,7 @@ class Controller:
         area = area_label(user) or t("area.whole_poland", lang)
         rows = [
             [Button(t("btn.area", lang, area=area), callback="settings:area")],
+            [Button(t("btn.free_on" if user.free_alerts else "btn.free_off", lang), callback="settings:free")],
             [Button(t("btn.quiet_hours", lang), callback="settings:quiet")],
             [Button(t("btn.price_drops_on" if user.notify_price_drops else "btn.price_drops_off", lang),
                     callback="settings:pricedrop")],
@@ -311,6 +312,17 @@ class Controller:
         await self.c.users.set_price_drop_alerts(user, not user.notify_price_drops)
         user.notify_price_drops = not user.notify_price_drops
         return self.settings_view(user)
+
+    async def toggle_free_alerts(self, user: User) -> Reply:
+        enable = not user.free_alerts
+        await self.c.users.set_free_alerts(user, enable)
+        user.free_alerts = enable
+        view = self.settings_view(user)
+        if enable and not user.deal_city:  # free items must be picked up: an area is required
+            view.text = t("free.need_area", user.language) + "\n\n" + view.text
+        elif enable:
+            view.text = t("free.enabled", user.language) + "\n\n" + view.text
+        return view
 
     async def toggle_new_sellers(self, user: User) -> Reply:
         await self.c.users.set_hide_new_sellers(user, not user.hide_new_sellers)

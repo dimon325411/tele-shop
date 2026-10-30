@@ -135,3 +135,17 @@ async def daily_digest(c: Container) -> int:
         except Exception:
             log.warning("daily digest failed for user %s", user.id, exc_info=True)
     return sent
+
+
+async def free_scan(c: Container) -> int:
+    """Personal mode: "Oddam za darmo" in the owner's area worth reselling (see app/services/freebies.py)."""
+    from app.services.freebies import FreebieService
+
+    if not c.settings.personal_mode or c.notifications is None:
+        return 0
+    users = [u for tid in c.settings.admin_ids if (u := await c.repo.get_user_by_telegram_id(tid)) is not None]
+    service = getattr(c, "_freebies", None)
+    if service is None:
+        service = FreebieService(c.repo, c.registry)
+        c._freebies = service  # keeps the price cache between runs
+    return (await service.scan(users, c.notifications.notifier)).sent
