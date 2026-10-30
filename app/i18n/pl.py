@@ -89,33 +89,51 @@ MESSAGES: dict[str, str] = {
     ),
 
     # --- wizard
-    "wizard.name": "✏️ <b>Krok 1/9.</b> Podaj nazwę wyszukiwania (np. „Rower do 1500 zł”).",
-    "wizard.sources": "🌐 <b>Krok 2/9.</b> Wybierz źródła (możesz kilka), potem „Gotowe”.",
+    "wizard.name": "✏️ <b>Krok 1/10.</b> Podaj nazwę wyszukiwania (np. „Rower do 1500 zł”).",
+    "wizard.sources": "🌐 <b>Krok 2/10.</b> Wybierz źródła (możesz kilka), potem „Gotowe”.",
     "wizard.sources_none": "Wybierz co najmniej jedno źródło.",
     "wizard.source_unavailable": "{source} — niedostępne",
     "wizard.keywords": (
-        "🔑 <b>Krok 3/9.</b> Wpisz słowa kluczowe, które <b>muszą</b> wystąpić. Kilka fraz oddziel przecinkiem.\n"
+        "🔑 <b>Krok 3/10.</b> Wpisz słowa kluczowe, które <b>muszą</b> wystąpić. Kilka fraz oddziel przecinkiem.\n"
         "Np.: <code>rower, 29</code>. Wpisz „-”, jeśli chcesz podać tylko słowa alternatywne."
     ),
     "wizard.alt_keywords": (
-        "🔀 <b>Krok 4/9.</b> Słowa alternatywne — wystarczy <b>jedno</b> z nich. "
+        "🔀 <b>Krok 4/10.</b> Słowa alternatywne — wystarczy <b>jedno</b> z nich. "
         "Np.: <code>kross, giant, trek</code>. Wpisz „-”, aby pominąć."
     ),
-    "wizard.excluded": "🚫 <b>Krok 5/9.</b> Słowa wykluczające (np. <code>uszkodzony, na części</code>). „-” — pomiń.",
+    "wizard.excluded": "🚫 <b>Krok 5/10.</b> Słowa wykluczające (np. <code>uszkodzony, na części</code>). „-” — pomiń.",
+    "wizard.category": "🗂 <b>Krok 6/10.</b> Kategoria (ogłoszenia bez kategorii przechodzą, chyba że wyłączysz to w podsumowaniu):",
     "wizard.price": (
-        "💰 <b>Krok 6/9.</b> Zakres cen w PLN: <code>100-500</code>, <code>-500</code> (do 500), "
+        "💰 <b>Krok 7/10.</b> Zakres cen w PLN: <code>100-500</code>, <code>-500</code> (do 500), "
         "<code>100-</code> (od 100). „-” — bez limitu.\n"
         "Ogłoszenia bez ceny nie są wysyłane, gdy ustawisz zakres."
     ),
-    "wizard.condition": "📦 <b>Krok 7/9.</b> Stan przedmiotu:",
-    "wizard.location": "📍 <b>Krok 8/9.</b> Miasto (np. <code>Kraków</code>) lub „-”, aby szukać w całej Polsce.",
-    "wizard.delivery": "🚚 <b>Krok 9/9.</b> Sposób odbioru:",
+    "wizard.condition": "📦 <b>Krok 8/10.</b> Stan przedmiotu:",
+    "wizard.city": "📍 <b>Krok 9/10.</b> Miasto (np. <code>Kraków</code>) lub „-”, aby szukać w całej Polsce.",
+    "wizard.delivery": "🚚 <b>Krok 10/10.</b> Sposób odbioru:",
     "wizard.summary": "<b>Podsumowanie</b>\n{summary}\n\nZapisać wyszukiwanie?",
     "wizard.saved": (
         "✅ Zapisano wyszukiwanie „{name}”.\nSprawdzanie co {interval}. Pierwsze sprawdzenie zapamięta obecne "
         "ogłoszenia — potem wyślę tylko nowe."
     ),
-    "wizard.unsupported_filters": "ℹ️ Uwaga: {source} nie udostępnia filtra: {filters}. Filtrujemy po naszej stronie, gdy dane są dostępne.",
+    "wizard.unsupported_filters": "ℹ️ {source} nie filtruje sam po: {filters}. Sprawdzamy to po naszej stronie na podstawie danych ogłoszenia.",
+    "wizard.btn_interval": "⏱ Częstotliwość: {interval}",
+    "wizard.btn_unknown_on": "❔ Ogłoszenia bez danych: wysyłaj",
+    "wizard.btn_unknown_off": "❔ Ogłoszenia bez danych: pomijaj",
+    "wizard.btn_fuzzy_on": "🔤 Tolerancja literówek: włączona",
+    "wizard.btn_fuzzy_off": "🔤 Tolerancja literówek: wyłączona",
+    "category.any": "Dowolna",
+    "category.elektronika": "Elektronika",
+    "category.dom": "Dom i ogród",
+    "category.moda": "Moda",
+    "category.sport": "Sport i hobby",
+    "category.motoryzacja": "Motoryzacja",
+    "category.dzieci": "Dla dzieci",
+    "filter.price": "cena",
+    "filter.category": "kategoria",
+    "filter.condition": "stan",
+    "filter.city": "lokalizacja",
+    "filter.delivery": "wysyłka",
     "condition.any": "Dowolny",
     "condition.new": "Nowy",
     "condition.used": "Używany",

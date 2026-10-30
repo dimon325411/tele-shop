@@ -127,6 +127,7 @@ class User:
     quiet_end_hour: int | None = None
     terms_accepted_at: datetime | None = None
     created_at: datetime | None = None
+    last_seen_at: datetime | None = None
     deleted_at: datetime | None = None
 
 
