@@ -126,3 +126,23 @@ class ScanTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TransientNetworkTests(unittest.IsolatedAsyncioTestCase):
+    async def test_timeouts_become_retryable_then_unavailable(self):
+        from app.sources.base import SourceUnavailable
+        from app.sources.http import TransientNetworkError
+
+        calls = []
+
+        async def transport(url, headers, timeout):
+            calls.append(url)
+            raise TransientNetworkError("ReadTimeout")
+
+        async def no_sleep(_):
+            return None
+
+        fetcher = PoliteFetcher(transport, min_interval=0, sleep=no_sleep, max_retries=2)
+        with self.assertRaises(SourceUnavailable):  # a clean, handled error (monitoring backs off)
+            await fetcher.get("https://www.olx.pl/api/v1/offers/?query=x")
+        self.assertEqual(len(calls), 3)

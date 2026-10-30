@@ -40,9 +40,16 @@ Transport = Callable[[str, dict[str, str], float], Awaitable[HttpResponse]]
 async def httpx_transport(url: str, headers: dict[str, str], timeout: float) -> HttpResponse:  # pragma: no cover
     import httpx  # imported lazily: optional at runtime
 
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        resp = await client.get(url, headers=headers)
-        return HttpResponse(resp.status_code, resp.text, {k.lower(): v for k, v in resp.headers.items()})
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            return HttpResponse(resp.status_code, resp.text, {k.lower(): v for k, v in resp.headers.items()})
+    except httpx.TransportError as exc:  # timeouts, resets, DNS: a temporary failure -> retried with backoff
+        raise TransientNetworkError(f"{type(exc).__name__}: {exc}") from exc
+
+
+class TransientNetworkError(OSError):
+    """Network problem talking to the source (not a refusal): PoliteFetcher retries, then SourceUnavailable."""
 
 
 class PoliteFetcher:
