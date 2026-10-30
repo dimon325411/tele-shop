@@ -187,6 +187,8 @@ class OlxPersonalSource(SourceAdapter):
             for category_id in category_ids:
                 text = await self.fetcher.get(build_url(query, criteria, min(limit, PAGE_LIMIT), category_id))
                 for listing in parse_offers(text, self.categories):
+                    if category_id is not None and listing.category != criteria.category:
+                        continue  # strict: other OLX sections never pass, even if OLX ignored category_id
                     seen.setdefault(listing.external_id, listing)
         return list(seen.values())
 

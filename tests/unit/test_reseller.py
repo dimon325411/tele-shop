@@ -68,6 +68,21 @@ class CategoryTests(unittest.IsolatedAsyncioTestCase):
         await src.fetch(SearchCriteria(keywords=["iphone"], category="iphone"))  # ids unknown -> no filter
         self.assertNotIn("category_id", parse_qs(urlparse(calls[0]).query))
 
+    async def test_other_sections_are_dropped_locally(self):
+        async def transport(url, headers, timeout):
+            return HttpResponse(200, json.dumps({"data": [
+                {"id": 1, "url": "https://www.olx.pl/d/oferta/a.html", "title": "RTX 3070", "category": {"id": 2184}},
+                {"id": 2, "url": "https://www.olx.pl/d/oferta/b.html", "title": "PC z RTX 3070", "category": {"id": 1197}},
+            ]}), {})
+
+        async def no_sleep(_):
+            return None
+
+        src = OlxPersonalSource(PoliteFetcher(transport, min_interval=0, sleep=no_sleep),
+                                OlxCategories({"karty_graficzne": [2184], "komputery": [1197]}))
+        got = await src.fetch(SearchCriteria(keywords=["rtx 3070"], category="karty_graficzne"))
+        self.assertEqual([l.external_id for l in got], ["1"])
+
     def test_missing_file(self):
         self.assertEqual(load_ids(Path("/nonexistent.json")), {})
 
