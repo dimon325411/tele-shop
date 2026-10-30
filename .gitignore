@@ -8,3 +8,4 @@ backups/
 *.sqlite3
 tests/fixtures/olx_live_sample.json
 .DS_Store
+.venv/
