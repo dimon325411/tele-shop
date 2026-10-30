@@ -302,6 +302,7 @@ MESSAGES: dict[str, str] = {
     "deals.item": "{n}. <b>{title}</b>{variant}\n   {price} {currency} · <b>−{pct}%</b> vs mediana {median} ({count} ofert)\n   💸 zysk ~{profit} {currency} przed kosztami · 📅 {posted}",
     "deals.footer": "ℹ️ Mediana liczona z aktywnych ofert tego wyszukiwania, w tej samej konfiguracji (GB) i stanie; bez uszkodzonych, zablokowanych i akcesoriów.",
     "deals.none": "Brak świeżych ofert ≥{pct}% poniżej mediany — {name}. Na rynku teraz: {count} ofert. Spróbuj mniejszego progu, np. „okazje 7%”.",
+    "criteria.deal": "💸 tylko okazje ≥{pct}%",
     "deals.choose": "Dla którego wyszukiwania pokazać okazje?",
     "chart.choose": "Wykres dla którego wyszukiwania?",
     "chart.choose_variant": "Która konfiguracja?",

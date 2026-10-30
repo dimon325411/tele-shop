@@ -60,6 +60,14 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
         await asyncio.sleep(tick_seconds)
 
 
+async def warm_up_charts() -> None:
+    try:
+        from app.services.charts import warm_up
+        await asyncio.to_thread(warm_up)
+    except Exception:  # charts are optional; never block startup
+        logging.getLogger(__name__).warning("chart warm-up failed", exc_info=True)
+
+
 async def main() -> None:
     settings = get_settings()
     if not settings.personal_mode:
@@ -82,6 +90,7 @@ async def main() -> None:
     dp.pre_checkout_query.outer_middleware(middleware)
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command=c, description=d) for c, d in COMMANDS])
+    warm = asyncio.create_task(warm_up_charts())  # noqa: F841 — font cache in background
     scheduler = asyncio.create_task(scheduler_loop(container, tick_seconds=15))
     saver = asyncio.create_task(persist_loop(repo))
     try:

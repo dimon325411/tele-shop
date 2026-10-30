@@ -52,6 +52,8 @@ class PresentationTests(unittest.TestCase):
         self.assertEqual(format_interval(7200), "2 godz.")
         c = SearchCriteria(keywords=["rower"], price_max=Decimal(500), city="Kraków")
         self.assertEqual(describe_criteria(c), "🔑 rower · 💰 0–500 PLN · 📍 Kraków")
+        deal = SearchCriteria(keywords=["iphone"], deal_min_discount=15)
+        self.assertIn("okazje ≥15%", describe_criteria(deal))
 
     def test_t_fallbacks(self):
         self.assertEqual(t("missing.key"), "missing.key")

@@ -353,6 +353,9 @@ async def cmd_compare(message: Message, user, container: Container) -> None:
     if not searches:
         await message.answer(t("searches.empty", user.language))
         return
+    if len(searches) == 1:
+        await _ai_answer(message, user, lambda: _compare_text(user, container, searches[0].id))
+        return
     rows = [[Button(s.name, callback=f"ai:c:{s.id}")] for s in searches]
     await message.answer(t("ai.compare_choose", user.language), reply_markup=markup(rows))
 
@@ -361,14 +364,14 @@ async def cmd_compare(message: Message, user, container: Container) -> None:
 async def cb_ai_compare(cb: CallbackQuery, user, container: Container) -> None:
     await cb.answer()
     search_id = int(cb.data.split(":")[2])
+    await _ai_answer(cb.message, user, lambda: _compare_text(user, container, search_id))
 
-    async def run() -> str:
-        answer, listings = await container.advisor.compare_search(user, search_id)
-        offers = "\n".join(f"{i + 1}. {l.title} — {l.price if l.price is not None else '?'} {l.currency or ''}\n{l.url}"
-                           for i, l in enumerate(listings))
-        return f"{answer}\n\n{t('ai.compare_offers', user.language)}\n{offers}"
 
-    await _ai_answer(cb.message, user, run)
+async def _compare_text(user, container: Container, search_id: int) -> str:
+    answer, listings = await container.advisor.compare_search(user, search_id)
+    offers = "\n".join(f"{i + 1}. {l.title} — {l.price if l.price is not None else '?'} {l.currency or ''}\n{l.url}"
+                       for i, l in enumerate(listings))
+    return f"{answer}\n\n{t('ai.compare_offers', user.language)}\n{offers}"
 
 
 @router.message(StateFilter(None), F.reply_to_message, F.text & ~F.text.startswith("/"))
@@ -402,6 +405,7 @@ async def send_chart_options(message: Message, user, container: Container, searc
 async def send_chart(message: Message, user, container: Container, search, variant: str) -> None:
     from app.analytics import Analytics
 
+    await message.bot.send_chat_action(message.chat.id, "upload_photo")
     result = await Analytics(container).chart(user, search, variant)
     if result.png is None:
         await message.answer(result.text)
@@ -414,6 +418,9 @@ async def cmd_deals(message: Message, user, container: Container) -> None:
     searches = await container.searches.list(user)
     if not searches:
         await message.answer(t("searches.empty", user.language))
+        return
+    if len(searches) == 1:
+        await send_deals(message, user, container, searches)
         return
     rows = [[Button(s.name, callback=f"dl:{s.id}")] for s in searches]
     await message.answer(t("deals.choose", user.language), reply_markup=markup(rows))
@@ -435,6 +442,9 @@ async def cmd_chart(message: Message, user, container: Container) -> None:
     searches = await container.searches.list(user)
     if not searches:
         await message.answer(t("searches.empty", user.language))
+        return
+    if len(searches) == 1:
+        await send_chart_options(message, user, container, searches[0])
         return
     rows = [[Button(s.name, callback=f"chs:{s.id}")] for s in searches]
     await message.answer(t("chart.choose", user.language), reply_markup=markup(rows))

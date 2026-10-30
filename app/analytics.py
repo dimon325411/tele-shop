@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -73,7 +74,7 @@ class Analytics:
             first, last = rows[0]["day"], rows[-1]["day"]
             sub = t("chart.history_sub", lang, start=first.strftime("%d.%m.%Y"), end=last.strftime("%d.%m.%Y"),
                     count=rows[-1]["count"])
-            png = history_chart(rows, label, sub)
+            png = await asyncio.to_thread(history_chart, rows, label, sub)
             change = (rows[-1]["median"] - rows[0]["median"]) / rows[0]["median"] * 100
             caption = t("chart.history_caption", lang, name=label, median=fmt_price(rows[-1]["median"]),
                         change=f"{change:+.0f}", days=(last - first).days)
@@ -82,7 +83,7 @@ class Analytics:
         if len(prices) < 5:
             return ChartResult(text=t("chart.no_data", lang, name=label))
         since = search.created_at or self.c.monitoring.clock()
-        png = distribution_chart(prices, t("chart.now_title", lang, name=label),
-                                 t("chart.now_sub", lang, count=len(prices)))
+        png = await asyncio.to_thread(distribution_chart, prices, t("chart.now_title", lang, name=label),
+                                      t("chart.now_sub", lang, count=len(prices)))
         caption = t("chart.now_caption", lang, name=label, since=fmt_dt(since, user.timezone, lang))
         return ChartResult(png, caption)

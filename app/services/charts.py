@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.ticker import MaxNLocator  # noqa: E402
 
 INK, MUTED, ACCENT, BAND, GRID = "#1f2328", "#6e7781", "#2563eb", "#bfd3fb", "#e5e7eb"
 
@@ -71,7 +72,15 @@ def distribution_chart(prices: list[Decimal], title: str, subtitle: str, currenc
             fontweight="bold", va="top")
     _style(ax, title, subtitle)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(_fmt_pln))
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))  # counts: no repeated "2, 2, 3, 3" labels
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _p: f"{v:.0f}"))
     ax.set_xlabel(currency, color=MUTED, fontsize=9)
     ax.set_ylabel("liczba ofert", color=MUTED, fontsize=9)
     return _png(fig)
+
+
+def warm_up() -> None:
+    """Render a tiny chart once so matplotlib builds its font cache before the first user request."""
+    fig, ax = plt.subplots(figsize=(1, 1))
+    ax.plot([0, 1], [0, 1])
+    _png(fig)

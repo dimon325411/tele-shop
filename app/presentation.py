@@ -133,6 +133,9 @@ def describe_criteria(search_or_draft, lang: str | None = None) -> str:
     delivery = getattr(c.delivery, "value", c.delivery)
     if delivery != "any":
         parts.append("🚚 " + t(f"delivery.{delivery}", lang))
+    deal = getattr(c, "deal_min_discount", None)
+    if deal:
+        parts.append(t("criteria.deal", lang, pct=deal))
     return " · ".join(parts) if parts else "—"
 
 

@@ -54,6 +54,14 @@ def make_fsm_storage(settings: Settings):
         return MemoryStorage()
 
 
+async def warm_up_charts() -> None:
+    try:
+        from app.services.charts import warm_up
+        await asyncio.to_thread(warm_up)
+    except Exception:  # charts are optional; never block startup
+        logging.getLogger(__name__).warning("chart warm-up failed", exc_info=True)
+
+
 async def main() -> None:
     settings = get_settings()
     setup_logging(settings.log_level)
@@ -68,6 +76,7 @@ async def main() -> None:
     dp.pre_checkout_query.outer_middleware(middleware)
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command=c, description=d) for c, d in COMMANDS])
+    warm = asyncio.create_task(warm_up_charts())  # noqa: F841 — font cache in background
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
