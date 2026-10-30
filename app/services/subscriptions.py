@@ -60,7 +60,12 @@ class SubscriptionService:
                 await self.repo.set_subscription_status(current.id, SubscriptionStatus.EXPIRED.value,
                                                         expires_at=max(now, current.starts_at + timedelta(seconds=1)))
                 await self.repo.mark_expiry_notified(current.id, now)  # replaced, not "expired" for the user
-            return await self.repo.create_subscription(user_id, plan.id, origin, starts, expires, payment_id)
+            sub = await self.repo.create_subscription(user_id, plan.id, origin, starts, expires, payment_id)
+            # saved searches resume right away instead of waiting for their "no access" back-off
+            for search in await self.repo.list_user_searches(user_id):
+                if search.is_active and (search.next_check_at is None or search.next_check_at > now):
+                    await self.repo.update_search(search.id, next_check_at=now)
+            return sub
 
     async def revoke(self, subscription_id: int, status: SubscriptionStatus) -> None:
         now = self.clock()

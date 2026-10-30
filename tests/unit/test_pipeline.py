@@ -375,9 +375,8 @@ class SubscriptionLifecycleTests(unittest.IsolatedAsyncioTestCase):
             await app.searches.create(self.user, draft())
         # scheduler skips users without access and does not spin on them
         self.assertEqual(await app.monitoring.plan_due_checks(), [])
-        # renewal resumes monitoring of the saved search
+        # renewal resumes monitoring of the saved search immediately
         await app.admin.grant(999, 111, "basic", 30)
-        app.clock.advance(hours=2)
         self.assertEqual(await app.monitoring.plan_due_checks(), [search.id])
 
     async def test_pending_notifications_cancelled_after_expiry(self):
