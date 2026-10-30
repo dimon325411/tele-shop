@@ -67,6 +67,13 @@ class UserService:
     async def set_hide_new_sellers(self, user: User, hide: bool) -> None:
         await self.repo.update_user(user.id, hide_new_sellers=hide)
 
+    async def set_deal_area(self, user: User, city: str | None, radius_km: int | None) -> None:
+        from app.domain.area import CITIES, RADII
+
+        if city is not None and (city not in CITIES or radius_km not in RADII):
+            raise ValueError("unknown city or radius")
+        await self.repo.update_user(user.id, deal_city=city, deal_radius_km=radius_km if city else None)
+
     async def set_price_drop_alerts(self, user: User, enabled: bool) -> None:
         await self.repo.update_user(user.id, notify_price_drops=enabled)
 

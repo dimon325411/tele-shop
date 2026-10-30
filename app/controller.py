@@ -249,7 +249,11 @@ class Controller:
         lang = user.language
         quiet = (f"{user.quiet_start_hour}:00–{user.quiet_end_hour}:00"
                  if user.quiet_start_hour is not None else t("settings.quiet_none", lang))
+        from app.domain.area import area_label
+
+        area = area_label(user) or t("area.whole_poland", lang)
         rows = [
+            [Button(t("btn.area", lang, area=area), callback="settings:area")],
             [Button(t("btn.quiet_hours", lang), callback="settings:quiet")],
             [Button(t("btn.price_drops_on" if user.notify_price_drops else "btn.price_drops_off", lang),
                     callback="settings:pricedrop")],
@@ -258,7 +262,40 @@ class Controller:
             [Button(t("btn.m_pack", lang), callback="menu:pack"), Button(t("btn.status", lang), callback="menu:status")],
             [Button(t("btn.delete_account", lang), callback="settings:delete")],
         ]
-        return Reply(t("settings.title", lang, quiet=quiet, tz=esc(user.timezone)), rows)
+        return Reply(t("settings.title", lang, quiet=quiet, tz=esc(user.timezone), area=esc(area)), rows)
+
+    def area_cities(self, user: User) -> Reply:
+        from app.domain.area import CITIES
+
+        lang = user.language
+        codes = list(CITIES)
+        rows = [[Button(CITIES[c][0], callback=f"area:c:{c}") for c in codes[i:i + 3]] for i in range(0, len(codes), 3)]
+        rows.append([Button(t("area.whole_poland_btn", lang), callback="area:all")])
+        rows.append([Button(t("btn.back", lang), callback="settings:open")])
+        return Reply(t("area.choose_city", lang), rows)
+
+    def area_radius(self, user: User, city: str) -> Reply:
+        from app.domain.area import CITIES, RADII
+
+        lang = user.language
+        if city not in CITIES:
+            return self.area_cities(user)
+        rows = [[Button(f"+{r} km", callback=f"area:r:{city}:{r}") for r in RADII],
+                [Button(t("btn.back", lang), callback="settings:area")]]
+        return Reply(t("area.choose_radius", lang, city=CITIES[city][0]), rows)
+
+    async def set_area(self, user: User, city: str | None, radius: int | None) -> Reply:
+        from app.domain.area import area_label
+
+        try:
+            await self.c.users.set_deal_area(user, city, radius)
+        except ValueError:
+            return self.area_cities(user)
+        user.deal_city, user.deal_radius_km = city, radius if city else None
+        view = self.settings_view(user)
+        view.text = t("area.saved", user.language, area=area_label(user) or t("area.whole_poland", user.language)) \
+            + "\n\n" + view.text
+        return view
 
     async def set_quiet_hours(self, user: User, raw: str) -> tuple[Reply, bool]:
         lang = user.language

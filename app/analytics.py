@@ -11,6 +11,7 @@ from app.container import Container
 from app.domain.models import Search, User
 from app.i18n import esc, t
 from app.presentation import SUSPICIOUS_DISCOUNT, Button, fmt_dt, fmt_posted, fmt_price, fmt_variant
+from app.domain.area import area_label, distance_km, in_area
 from app.domain.pricing import price_stats
 from app.domain.timing import local_day_start_utc
 from app.domain.variants import variant_of
@@ -42,7 +43,7 @@ class Analytics:
         deals = []
         for s in searches:
             pct = spread or s.criteria.deal_min_discount or DEFAULT_SPREAD
-            deals += [(s, d) for d in await self.market.find_deals(s, pct, limit=10)]
+            deals += [(s, d) for d in await self.market.find_deals(s, pct, limit=100) if in_area(user, d.listing)]
         deals.sort(key=lambda sd: -sd[1].discount)
         deals = deals[:5 if len(searches) == 1 else 10]
         thresholds = {s.criteria.deal_min_discount or DEFAULT_SPREAD for s in searches}
@@ -54,7 +55,7 @@ class Analytics:
             for s in searches:
                 count += len(await self.market.current_prices(s.id))
             return t("deals.none", lang, pct=pct, name=esc(names), count=count), []
-        lines = [t("deals.header", lang, pct=pct, name=esc(names))]
+        lines = [t("deals.header", lang, pct=pct, name=esc(names), area=esc(area_label(user) or t("area.whole_poland", lang)))]
         for i, (s, d) in enumerate(deals, 1):
             l = d.listing
             variant = f", {fmt_variant(d.variant)}" if d.variant else ""
@@ -62,7 +63,7 @@ class Analytics:
             lines.append(t("deals.item", lang, n=i, title=esc(title[:70]), price=fmt_price(l.price), url=esc(l.url),
                            currency=esc(l.currency or "PLN"), pct=d.discount, median=fmt_price(d.stats.median.quantize(Decimal("1"))),
                            count=d.stats.count, variant=variant, profit=fmt_price(d.potential_profit),
-                           posted=fmt_posted(l, self.market.clock(), user.timezone, lang))
+                           posted=fmt_posted(l, self.market.clock(), user.timezone, lang) + _where(user, l))
                          + (t("deals.suspicious", lang) if d.discount >= SUSPICIOUS_DISCOUNT else ""))
         buttons: list = []
         return "\n\n".join(lines), buttons
@@ -183,9 +184,10 @@ class Analytics:
                            p75=fmt_price(st.p75.quantize(one)),
                            deal=fmt_price((st.median * (100 - pct) / 100).quantize(one))))
         lines.append("\n".join(block))
-        cheapest = sorted((m for m in market if is_fresh(m, now)), key=lambda m: m.price)[:STATS_CHEAPEST]
+        cheapest = sorted((m for m in market if is_fresh(m, now) and in_area(user, m)),
+                          key=lambda m: m.price)[:STATS_CHEAPEST]
         if not cheapest:
-            lines.append(t("stats.no_fresh", lang))
+            lines.append(t("stats.no_fresh", lang, area=esc(area_label(user) or t("area.whole_poland", lang))))
         else:
             items = []
             for m in cheapest:
@@ -196,9 +198,19 @@ class Analytics:
                 variant = f" · {fmt_variant(variant_of(m.title))}" if variants and variant_of(m.title) else ""
                 items.append(t("stats.cheap_item", lang, price=fmt_price(m.price), cur=cur, diff=diff,
                                variant=variant, url=esc(m.url), title=esc(m.title[:50]),
-                               posted=fmt_posted(m, now, user.timezone, lang)))
-            lines.append(t("stats.cheapest", lang) + "\n" + "\n".join(items))
+                               posted=fmt_posted(m, now, user.timezone, lang) + _where(user, m)))
+            lines.append(t("stats.cheapest", lang, area=esc(area_label(user) or t("area.whole_poland", lang)))
+                         + "\n" + "\n".join(items))
         return "\n\n".join(lines), buttons
+
+
+def _where(user, listing) -> str:
+    """' · 📍 Wieliczka 12 km' (distance only when an area is chosen and OLX gave coordinates)."""
+    dist = distance_km(user, listing)
+    city = listing.city or ""
+    if dist is None:
+        return f" · 📍 {esc(city)}" if city else ""
+    return f" · 📍 {esc(city)} {dist:.0f} km".replace("  ", " ")
 
 
 def _pct(diff: int) -> str:

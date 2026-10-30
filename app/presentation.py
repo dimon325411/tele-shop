@@ -87,7 +87,10 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     facts = [t("notify.posted_at", lang, time=fmt_posted(listing, now, user.timezone, lang))]
     location = ", ".join(x for x in (listing.city, listing.region) if x)
     if location:
-        facts.append(t("notify.location", lang, location=esc(location)))
+        from app.domain.area import distance_km
+
+        dist = distance_km(user, listing)
+        facts.append(t("notify.location", lang, location=esc(location)) + (f" ({dist:.0f} km)" if dist is not None else ""))
     if listing.condition:
         facts.append(t(f"condition.{listing.condition}", lang))
     lines.append(" · ".join(facts))

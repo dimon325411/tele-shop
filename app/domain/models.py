@@ -130,6 +130,8 @@ class User:
     bot_blocked: bool = False
     notify_price_drops: bool = True
     hide_new_sellers: bool = False
+    deal_city: str | None = None  # app/domain/area.py code; None = links from the whole of Poland
+    deal_radius_km: int | None = None
     quiet_start_hour: int | None = None
     quiet_end_hour: int | None = None
     terms_accepted_at: datetime | None = None

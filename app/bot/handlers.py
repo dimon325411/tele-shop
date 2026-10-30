@@ -352,11 +352,26 @@ async def cb_settings(cb: CallbackQuery, ctl: Controller, user, state: FSMContex
         await edit_or_send(cb, await ctl.toggle_price_drops(user))
     elif action == "newsellers":
         await edit_or_send(cb, await ctl.toggle_new_sellers(user))
+    elif action == "area":
+        await edit_or_send(cb, ctl.area_cities(user))
     elif action == "delete":
         await edit_or_send(cb, ctl.confirm_delete_account(user))
     elif action == "delete_confirm":
         await state.clear()
         await edit_or_send(cb, await ctl.delete_account(user))
+
+
+@router.callback_query(F.data.regexp(r"^area:(all|c:[a-z]+|r:[a-z]+:\d+)$"))
+async def cb_area(cb: CallbackQuery, ctl: Controller, user) -> None:
+    await cb.answer()
+    parts = cb.data.split(":")
+    if parts[1] == "all":
+        reply = await ctl.set_area(user, None, None)
+    elif parts[1] == "c":
+        reply = ctl.area_radius(user, parts[2])
+    else:
+        reply = await ctl.set_area(user, parts[2], int(parts[3]))
+    await edit_or_send(cb, reply)
 
 
 @router.message(SettingsInput.quiet_hours, F.text & ~F.text.startswith("/"))

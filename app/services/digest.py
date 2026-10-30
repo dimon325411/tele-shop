@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from app.domain.area import area_label, in_area
 from app.domain.models import User
 from app.domain.timing import Clock, local_day_start_utc, utcnow
 from app.i18n import esc, t
@@ -62,7 +63,7 @@ class DigestService:
             market = await self.market.market(search.id)
             best: NearMiss | None = None
             for listing in fresh:
-                if not usable(listing):
+                if not usable(listing) or not in_area(user, listing):
                     continue
                 stats = stats_for(listing, market)
                 if stats is None:
@@ -70,7 +71,7 @@ class DigestService:
                 discount = -stats.diff_percent(listing.price)
                 if best is None or discount > best.discount:
                     best = NearMiss(search.name, listing.title, listing.price, listing.currency or "PLN", discount,
-                                    listing.url, fmt_posted(listing, now, user.timezone, lang))
+                                    listing.url, fmt_posted(listing, now, user.timezone, lang) + _where(user, listing))
             if best is not None:
                 near.append(best)
             lines_per_search.append((len(fresh), t("digest.search_line", lang, name=esc(search.name), count=len(fresh),
@@ -91,7 +92,8 @@ class DigestService:
             parts.append(text)
         near = sorted((n for n in near if n.discount > 0), key=lambda n: -n.discount)[:NEAR_MISS_LIMIT]
         if near:
-            parts.append(t("digest.near_title", lang) + "\n" + "\n".join(
+            parts.append(t("digest.near_title", lang, area=esc(area_label(user) or t("area.whole_poland", lang)))
+                         + "\n" + "\n".join(
                 t("digest.near_item", lang, pct=n.discount, name=esc(n.search_name), title=esc(n.title[:60]),
                   price=fmt_price(n.price), currency=esc(n.currency), url=esc(n.url), posted=n.posted)
                 for n in near))
@@ -111,3 +113,12 @@ def _tz(name: str):
     from zoneinfo import ZoneInfo
 
     return ZoneInfo(name)
+
+
+def _where(user, listing) -> str:
+    from app.domain.area import distance_km
+
+    dist = distance_km(user, listing)
+    if dist is None:
+        return f" · 📍 {esc(listing.city)}" if listing.city else ""
+    return f" · 📍 {esc(listing.city or '')} {dist:.0f} km"

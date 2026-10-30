@@ -473,3 +473,64 @@ class JunkFromLiveDataTests(unittest.TestCase):
             self.assertTrue(is_junk(title), title)
         for title in ["iPhone 15 Pro 256GB", "Gigabyte RTX 3060 12GB", "PC i5 RTX 4070 32GB RAM"]:
             self.assertFalse(is_junk(title), title)
+
+
+class DealAreaTests(unittest.IsolatedAsyncioTestCase):
+    def test_in_area(self):
+        from app.domain.area import area_label, distance_km, in_area
+        from app.domain.models import Listing, User
+
+        user = User(id=1, telegram_id=1, deal_city="krakow", deal_radius_km=30)
+        wieliczka = Listing(source="olx", external_id="1", url="u", title="t", city="Wieliczka",
+                            latitude=49.987, longitude=20.065)
+        katowice = Listing(source="olx", external_id="2", url="u", title="t", city="Katowice",
+                           latitude=50.2649, longitude=19.0238)
+        no_coords = Listing(source="olx", external_id="3", url="u", title="t", city="Kraków")
+        self.assertTrue(in_area(user, wieliczka))
+        self.assertAlmostEqual(distance_km(user, wieliczka), 11.6, delta=1.5)
+        self.assertFalse(in_area(user, katowice))  # ~70 km
+        self.assertTrue(in_area(user, no_coords))  # same city name
+        self.assertEqual(area_label(user), "Kraków +30 km")
+        everywhere = User(id=2, telegram_id=2)
+        self.assertTrue(in_area(everywhere, katowice))
+        self.assertIsNone(area_label(everywhere))
+
+    async def test_statistics_nationwide_links_local(self):
+        from app.analytics import Analytics
+        from app.controller import Controller
+        from tests.unit.test_controller_jobs import container
+
+        app = await App().setup()
+        user = await app.user(111)
+        await app.admin.grant(999, 111, "pro", 60)
+        d = draft(name="iPhone 15 Pro", keywords=["iphone 15 pro"])
+        d.deal_min_discount = 15
+        search = await app.searches.create(user, d)
+        now = app.clock()
+        krk, waw = dict(latitude=50.06, longitude=19.94), dict(latitude=52.23, longitude=21.01)
+        for i, p in enumerate([3900, 3800, 4000, 3850, 3950, 3900]):  # the market: Warsaw (far away)
+            app.mock.publish(phone(f"a{i}", p, posted=now - timedelta(days=2), city="Warszawa", **waw))
+        app.mock.publish(phone("near", 3200, posted=now - timedelta(hours=1), city="Kraków", **krk))
+        app.mock.publish(phone("far", 3100, posted=now - timedelta(hours=1), city="Warszawa", **waw))
+        ctl = Controller(container(app))
+        reply = await ctl.set_area(user, "krakow", 30)
+        self.assertIn("Kraków +30 km", reply.text)
+        user = await app.repo.get_user(user.id)
+        out = await app.monitoring.check_search(search.id)
+        self.assertEqual((out.notifications, out.suppressed_area), (1, 1))
+        await app.notifications.deliver_batch()
+        sent = app.notifier.sent[0]
+        self.assertTrue(sent.listing.external_id.endswith("near"))
+        text, _ = await Analytics(container(app)).stats(user, await app.repo.get_search(search.id))
+        text = text.replace("\xa0", " ")
+        self.assertIn("mediana <b>3 900 PLN</b>", text)  # Warsaw prices still make the median
+        self.assertIn("test-listing/near", text)
+        self.assertNotIn("test-listing/far", text)
+        self.assertIn("📍 Kraków 0 km", text)
+        deals_text, _ = await Analytics(container(app)).deals(user, [await app.repo.get_search(search.id)])
+        self.assertIn("test-listing/near", deals_text)
+        self.assertNotIn("test-listing/far", deals_text)
+        reply = await ctl.set_area(user, None, None)
+        self.assertIn("cała Polska", reply.text)
+        with self.assertRaises(ValueError):
+            await app.users.set_deal_area(user, "atlantyda", 30)

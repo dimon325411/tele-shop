@@ -302,7 +302,9 @@ class AdvisorService:
             raise AIUnavailable("not_found")
         now = self.clock()
         recent = await self.repo.list_recent_matches(search_id, now - FRESH_WINDOW, COMPARE_MAX_LISTINGS * 5)
-        listings = [l for l in recent if is_fresh(l, now)][:COMPARE_MAX_LISTINGS]
+        from app.domain.area import in_area
+
+        listings = [l for l in recent if is_fresh(l, now) and in_area(user, l)][:COMPARE_MAX_LISTINGS]
         if len(listings) < 2:
             raise AIUnavailable("too_few")
         prices = await self.repo.list_comparable_prices(search_id, -1, now - timedelta(days=30), None, None)

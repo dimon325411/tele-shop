@@ -13,6 +13,7 @@ from app.config import Settings
 from app.domain.matcher import match
 from app.domain.models import NotificationKind, Search, SourceState
 from app.domain.plans import monitored_search_ids
+from app.domain.area import in_area
 from app.domain.sellers import is_new_account
 from app.domain.timing import Clock, backoff_seconds, utcnow
 from app.services.locks import Locker
@@ -52,6 +53,7 @@ class CheckOutcome:
     suppressed_not_deal: int = 0  # reseller mode: matched and new, but not cheap enough
     suppressed_not_hot: int = 0  # deal, but stale or from a brand-new seller account
     suppressed_ai: int = 0  # deal, but the AI found a red flag in the description
+    suppressed_area: int = 0  # deal, but outside the owner's pick-up area (still counts for statistics)
     retry_after: float | None = None
     source_status: dict[str, str] = field(default_factory=dict)
 
@@ -212,6 +214,9 @@ class MonitoringService:
             deal = await self.market.evaluate_deal(search.id, listing, search.criteria.deal_min_discount)
             if deal is None:
                 outcome.suppressed_not_deal += 1
+                continue
+            if not in_area(user, listing):
+                outcome.suppressed_area += 1
                 continue
             if outcome.notifications >= MAX_NEW_NOTIFICATIONS_PER_CHECK:
                 outcome.suppressed_cap += 1
