@@ -35,7 +35,8 @@ class DomainTests(unittest.TestCase):
         self.assertFalse(is_free_offer(offer(3, "Oddam iPhone 13 za 900", price=900)))  # a sale, despite "Oddam"
 
     def test_junk_and_query(self):
-        for title in ["Oddam kotka w dobre ręce", "Przyjmę meble za darmo", "Oddam gruz", "Oddam pralkę zepsutą"]:
+        for title in ["Oddam kotka w dobre ręce", "Przyjmę meble za darmo", "Oddam gruz", "Oddam pralkę zepsutą",
+                      "Dwie Suczki do oddania.", "Oddam gupiki", "Szczenięta do adopcji"]:
             self.assertTrue(is_free_junk(title), title)
         self.assertFalse(is_free_junk("Oddam pralkę Bosch"))
         self.assertEqual(value_query("Oddam za darmo pralkę Bosch Serie 4, sprawna"), "pralke bosch serie")

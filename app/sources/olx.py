@@ -16,6 +16,7 @@ Unknown structure => ``SourceLayoutChanged`` (the search pauses, admin sees it i
 
 from __future__ import annotations
 
+import html
 import json
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -144,7 +145,7 @@ def parse_offers(payload: str | bytes | dict, categories: "OlxCategories | None"
             source="olx",
             external_id=str(offer_id),
             url=url,
-            title=title.strip(),
+            title=html.unescape(title).strip(),
             price=price,
             currency=currency,
             description=(item.get("description") or None) if isinstance(item.get("description"), str) else None,
