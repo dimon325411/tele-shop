@@ -7,10 +7,12 @@ import re
 
 _TOKEN = re.compile(r"(?<!\d)\d{6,12}:[A-Za-z0-9_-]{30,}")
 _DSN_PASSWORD = re.compile(r"(://[^:/@\s]+:)[^@\s]+@")
+_API_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}")
 
 
 def mask_secrets(text: str) -> str:
     text = _TOKEN.sub("<bot-token>", text)
+    text = _API_KEY.sub("<api-key>", text)
     return _DSN_PASSWORD.sub(r"\1***@", text)
 
 

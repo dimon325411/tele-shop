@@ -197,6 +197,21 @@ WHERE m.search_id = :search_id
 ORDER BY l.last_seen_at DESC
 LIMIT :limit
 """
+USER_LISTING_MATCH = """
+SELECT m.search_id FROM match_results m
+WHERE m.user_id = :user_id AND m.listing_id = :listing_id
+ORDER BY m.id DESC LIMIT 1
+"""
+RECENT_MATCHES = f"""
+SELECT {", ".join("l." + c.strip() for c in LISTING_COLUMNS.split(","))}
+FROM match_results m JOIN listings l ON l.id = m.listing_id
+WHERE m.search_id = :search_id AND l.first_seen_at >= :since
+ORDER BY m.id DESC LIMIT :limit
+"""
+LISTING_BY_MESSAGE = """
+SELECT listing_id FROM notifications WHERE user_id = :user_id AND telegram_message_id = :message_id
+ORDER BY id DESC LIMIT 1
+"""
 COUNT_SENT_SINCE = """
 SELECT count(*) FROM notifications WHERE user_id = :user_id AND status = 'sent' AND sent_at >= :since
 """

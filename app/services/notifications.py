@@ -45,6 +45,7 @@ class OutgoingListing:
     kind: str
     old_price: Decimal | None
     price_stats: "PriceStats | None" = None
+    ai_enabled: bool = False
 
 
 class Notifier(Protocol):
@@ -136,7 +137,8 @@ class NotificationService:
             stats = await self.comparable_stats(n.search_id, listing, now)
         try:
             message_id = await self.notifier.send_listing(
-                OutgoingListing(user, listing, n.search_id, search_name, n.kind.value, old_price, stats))
+                OutgoingListing(user, listing, n.search_id, search_name, n.kind.value, old_price, stats,
+                                ai_enabled=self.settings.ai_ready and access.plan.advanced_filters))
         except NotifierBlocked:
             await self.repo.update_user(user.id, bot_blocked=True)
             await self.repo.finish_notification(n.id, NotificationStatus.CANCELLED.value, now, "bot blocked by user")

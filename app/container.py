@@ -35,6 +35,7 @@ class Container:
     retention: RetentionService
     redis: Any = None
     notifications: NotificationService | None = None
+    advisor: Any = None
 
     def attach_notifier(self, notifier: Notifier) -> None:
         self.notifications = NotificationService(self.repo, self.subs, notifier, self.settings)
@@ -70,6 +71,9 @@ def build_container(settings: Settings, repo: Any = None, redis: Any = None, use
         retention=RetentionService(repo, settings),
         redis=redis,
     )
+    from app.services.ai import AdvisorService, build_provider
+
+    container.advisor = AdvisorService(repo, build_provider(settings), settings)
     log.info("services ready: sources=%s payments=%s personal_mode=%s", registry.enabled_codes,
              settings.payments_mode.value, settings.personal_mode)
     return container

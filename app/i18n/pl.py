@@ -32,6 +32,7 @@ MESSAGES: dict[str, str] = {
     "btn.no": "❌ Nie",
     "btn.done": "✅ Gotowe",
     "btn.save": "💾 Zapisz",
+    "btn.ask_ai": "🤖 Zapytaj AI: warto kupić?",
     "btn.open_listing": "🔗 Otwórz ogłoszenie",
     "btn.pause_search": "⏸ Wstrzymaj to wyszukiwanie",
     "btn.notify_settings": "🔔 Ustawienia powiadomień",
@@ -64,6 +65,7 @@ MESSAGES: dict[str, str] = {
         "/newsearch — nowe wyszukiwanie\n/searches — lista wyszukiwań\n/status — stan usługi\n"
         "/plan — subskrypcja i limity\n/pause, /resume — wstrzymaj/wznów monitoring\n"
         "/delete — usuń wyszukiwanie\n/settings — powiadomienia i godziny ciszy\n"
+        "/compare — porównaj oferty z pomocą AI (Pro+)\n"
         "/terms — regulamin\n/privacy — prywatność\n/support — pomoc\n/paysupport — płatności\n\n"
         "<b>Źródła</b>\nObecnie aktywne jest wyłącznie źródło testowe (ogłoszenia oznaczone [TEST]). "
         "Regulaminy OLX.pl i Allegro nie pozwalają na automatyczne zbieranie ich ogłoszeń bez zgody, "
@@ -268,6 +270,22 @@ MESSAGES: dict[str, str] = {
     "notify.baseline": "🔎 „{name}”: pierwsze sprawdzenie zakończone, pasujących ogłoszeń teraz: {count}. Od teraz wyślę tylko nowe.",
     "notify.capped": "➕ „{name}”: jeszcze {count} nowych pasujących ogłoszeń w tym sprawdzeniu — wysłałem tylko 10 pierwszych. Zawęź wyszukiwanie (słowa, cena, miasto), aby dostawać mniej.",
     "notify.search_paused": "⏸ Wstrzymano wyszukiwanie „{name}”.",
+
+    # --- AI advisor
+    "ai.thinking": "🤖 Analizuję ogłoszenie… (to może potrwać kilkanaście sekund)",
+    "ai.thinking_compare": "🤖 Porównuję oferty…",
+    "ai.answer_header": "🤖 Ocena AI (to tylko podpowiedź — sprawdź przedmiot na miejscu):",
+    "ai.compare_choose": "Które wyszukiwanie porównać? (oferty z ostatnich 7 dni)",
+    "ai.compare_offers": "Oferty:",
+    "ai.reply_hint": "💡 Możesz też odpowiedzieć na powiadomienie własnym pytaniem, np. „czy nada się do miasta?”.",
+    "ai.error.disabled": "AI nie jest skonfigurowane (AI_PROVIDER w .env).",
+    "ai.error.not_in_plan": "Doradca AI jest dostępny w planach Pro i Premium.",
+    "ai.error.not_found": "Nie znalazłem tego ogłoszenia wśród Twoich wyników.",
+    "ai.error.daily_limit": "Wykorzystano dzienny limit pytań do AI. Spróbuj jutro.",
+    "ai.error.rate_limited": "AI jest chwilowo przeciążone. Spróbuj za minutę.",
+    "ai.error.provider_error": "AI nie odpowiedziało. Spróbuj ponownie później.",
+    "ai.error.empty": "AI zwróciło pustą odpowiedź. Spróbuj ponownie.",
+    "ai.error.too_few": "Za mało ofert do porównania (potrzebne co najmniej 2 z ostatnich 7 dni).",
 
     # --- settings
     "settings.title": "<b>Ustawienia</b>\nGodziny ciszy: {quiet}\nStrefa czasowa: {tz}",

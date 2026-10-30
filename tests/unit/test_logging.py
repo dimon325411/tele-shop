@@ -12,6 +12,7 @@ class LoggingTests(unittest.TestCase):
         self.assertEqual(mask_secrets("postgresql+psycopg://market:s3cr3t@db:5432/market"),
                          "postgresql+psycopg://market:***@db:5432/market")
         self.assertEqual(mask_secrets("nothing secret 12:34"), "nothing secret 12:34")
+        self.assertEqual(mask_secrets("key sk-ant-api03-abcdefghijklmnopqrstuvwxyz"), "key <api-key>")
 
     def test_filter_rewrites_record(self):
         record = logging.LogRecord("x", logging.INFO, __file__, 1, "token %s", ("1234567890:" + "A" * 35,), None)

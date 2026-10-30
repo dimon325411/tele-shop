@@ -266,7 +266,7 @@ class MemoryRepository:
         await asyncio.sleep(0)
         if (search_id, listing_id) in self.matches:
             return False
-        self.matches[(search_id, listing_id)] = {"user_id": user_id, "reasons": _c(reasons)}
+        self.matches[(search_id, listing_id)] = {"user_id": user_id, "reasons": _c(reasons), "seq": self._next("match")}
         return True
 
     async def add_run(self, search_id, source, started_at, finished_at, status, fetched, new_listings, matched, error):
@@ -316,6 +316,23 @@ class MemoryRepository:
     async def count_sent_since(self, user_id, since) -> int:
         return sum(1 for n in self.notifications.values()
                    if n.user_id == user_id and n.status is NotificationStatus.SENT and n.sent_at and n.sent_at >= since)
+
+    async def find_user_listing_match(self, user_id, listing_id):
+        hits = [sid for (sid, lid), m in self.matches.items() if lid == listing_id and m["user_id"] == user_id]
+        if not hits or listing_id not in self.listings:
+            return None
+        return max(hits), _c(self.listings[listing_id])
+
+    async def list_recent_matches(self, search_id, since, limit):
+        rows = [self.listings[lid] for (sid, lid), m in sorted(self.matches.items(), key=lambda kv: -kv[1]["seq"])
+                if sid == search_id and lid in self.listings and self.listings[lid].first_seen_at >= since]
+        return _c(rows[:limit])
+
+    async def find_listing_by_message(self, user_id, telegram_message_id):
+        for n in self.notifications.values():
+            if n.user_id == user_id and getattr(n, "message_id", None) == telegram_message_id:
+                return n.listing_id
+        return None
 
     async def list_comparable_prices(self, search_id, exclude_listing_id, since, currency, condition,
                                      limit=500) -> list[Decimal]:

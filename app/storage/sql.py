@@ -294,6 +294,20 @@ class SqlRepository:
         r = await self._one(q.COUNT_SENT_SINCE, user_id=user_id, since=since)
         return int(r["count"])
 
+    async def find_user_listing_match(self, user_id, listing_id):
+        r = await self._one(q.USER_LISTING_MATCH, user_id=user_id, listing_id=listing_id)
+        if r is None:
+            return None
+        listing = await self.get_listing(listing_id)
+        return (r["search_id"], listing) if listing else None
+
+    async def list_recent_matches(self, search_id, since, limit):
+        return [_listing(r) for r in await self._exec(q.RECENT_MATCHES, search_id=search_id, since=since, limit=limit)]
+
+    async def find_listing_by_message(self, user_id, telegram_message_id):
+        r = await self._one(q.LISTING_BY_MESSAGE, user_id=user_id, message_id=telegram_message_id)
+        return r["listing_id"] if r else None
+
     async def list_comparable_prices(self, search_id, exclude_listing_id, since, currency, condition,
                                      limit=500) -> list[Decimal]:
         rows = await self._exec(q.COMPARABLE_PRICES, search_id=search_id, listing_id=exclude_listing_id, since=since,

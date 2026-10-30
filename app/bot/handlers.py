@@ -6,7 +6,7 @@ import logging
 
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ErrorEvent, LabeledPrice, LinkPreviewOptions, Message, PreCheckoutQuery
@@ -16,7 +16,7 @@ from app.container import Container
 from app.controller import Controller, Reply
 from app.domain.plans import AccessDenied
 from app.i18n import esc, format_interval, t
-from app.presentation import fmt_dt
+from app.presentation import Button, fmt_dt
 from app.services.payments import SuccessfulPaymentData
 from app.wizard import SearchWizard
 
@@ -321,6 +321,63 @@ async def quiet_hours_input(message: Message, ctl: Controller, user, state: FSMC
     if ok:
         await state.clear()
     await send(message, reply)
+
+
+# ------------------------------------------------------------- AI advisor
+async def _ai_answer(message: Message, user, run) -> None:
+    """Show a 'thinking' message, run the advisor, replace it with the answer (plain text, no HTML)."""
+    from app.services.ai import AIUnavailable
+
+    lang = user.language
+    wait = await message.answer(t("ai.thinking", lang))
+    try:
+        text = await run()
+    except AIUnavailable as exc:
+        await wait.edit_text(t(f"ai.error.{exc.code}", lang))
+        return
+    await wait.edit_text(f"{t('ai.answer_header', lang)}\n\n{text}", parse_mode=None,
+                         link_preview_options=NO_PREVIEW)
+
+
+@router.callback_query(F.data.regexp(r"^ai:l:\d+$"))
+async def cb_ai_listing(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    listing_id = int(cb.data.split(":")[2])
+    await _ai_answer(cb.message, user, lambda: container.advisor.advise_listing(user, listing_id))
+
+
+@router.message(Command("compare"))
+async def cmd_compare(message: Message, user, container: Container) -> None:
+    searches = [s for s in await container.searches.list(user)]
+    if not searches:
+        await message.answer(t("searches.empty", user.language))
+        return
+    rows = [[Button(s.name, callback=f"ai:c:{s.id}")] for s in searches]
+    await message.answer(t("ai.compare_choose", user.language), reply_markup=markup(rows))
+
+
+@router.callback_query(F.data.regexp(r"^ai:c:\d+$"))
+async def cb_ai_compare(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    search_id = int(cb.data.split(":")[2])
+
+    async def run() -> str:
+        answer, listings = await container.advisor.compare_search(user, search_id)
+        offers = "\n".join(f"{i + 1}. {l.title} — {l.price if l.price is not None else '?'} {l.currency or ''}\n{l.url}"
+                           for i, l in enumerate(listings))
+        return f"{answer}\n\n{t('ai.compare_offers', user.language)}\n{offers}"
+
+    await _ai_answer(cb.message, user, run)
+
+
+@router.message(StateFilter(None), F.reply_to_message, F.text & ~F.text.startswith("/"))
+async def reply_question(message: Message, user, container: Container, ctl: Controller) -> None:
+    """User replies to a notification with a question -> ask the advisor about that listing."""
+    listing_id = await container.repo.find_listing_by_message(user.id, message.reply_to_message.message_id)
+    if listing_id is None:
+        await send(message, Reply(t("menu.title", user.language), ctl.help(user.language).buttons))
+        return
+    await _ai_answer(message, user, lambda: container.advisor.advise_listing(user, listing_id, message.text))
 
 
 # ------------------------------------------------------------------- admin

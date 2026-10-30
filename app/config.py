@@ -20,7 +20,7 @@ class PaymentsMode(str, Enum):
     LIVE = "live"  # real Telegram Stars; requires PAYMENTS_LIVE_CONFIRMED=yes
 
 
-SECRET_FIELDS = {"bot_token", "database_url", "redis_url", "webhook_secret", "crypto_webhook_secret"}
+SECRET_FIELDS = {"bot_token", "database_url", "redis_url", "webhook_secret", "crypto_webhook_secret", "ai_api_key"}
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -95,6 +95,14 @@ class Settings(BaseModel):
 
     support_contact: str = "@support"
 
+    # AI purchase advisor (app/services/ai.py): disabled | anthropic | openai_compat
+    ai_provider: str = "disabled"
+    ai_api_key: str = ""
+    ai_model: str = ""
+    ai_base_url: str = ""
+    ai_daily_limit: int = 30
+    ai_max_tokens: int = 800
+
     @field_validator("admin_ids", mode="before")
     @classmethod
     def _admins(cls, value: object) -> list[int]:
@@ -122,6 +130,14 @@ class Settings(BaseModel):
         if self.personal_mode:  # personal use: nothing is sold
             return False
         return self.payments_mode is PaymentsMode.TEST or self.live_payments_allowed
+
+    @property
+    def ai_ready(self) -> bool:
+        if self.ai_provider == "anthropic":
+            return bool(self.ai_api_key)
+        if self.ai_provider == "openai_compat":
+            return bool(self.ai_base_url and self.ai_model)
+        return False
 
     @property
     def real_sources_allowed(self) -> set[str]:
