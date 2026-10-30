@@ -64,6 +64,9 @@ class UserService:
     async def set_quiet_hours(self, user: User, start: int | None, end: int | None) -> None:
         await self.repo.update_user(user.id, quiet_start_hour=start, quiet_end_hour=end)
 
+    async def set_hide_new_sellers(self, user: User, hide: bool) -> None:
+        await self.repo.update_user(user.id, hide_new_sellers=hide)
+
     async def set_price_drop_alerts(self, user: User, enabled: bool) -> None:
         await self.repo.update_user(user.id, notify_price_drops=enabled)
 

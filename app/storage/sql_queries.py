@@ -7,7 +7,7 @@ Ambiguous parameters carry explicit CASTs (needed for server-side binding anyway
 
 USER_COLUMNS = (
     "id, telegram_id, username, first_name, language, timezone, is_suspended, suspended_reason, trial_used, "
-    "bot_blocked, notify_price_drops, quiet_start_hour, quiet_end_hour, terms_accepted_at, created_at, "
+    "bot_blocked, notify_price_drops, hide_new_sellers, quiet_start_hour, quiet_end_hour, terms_accepted_at, created_at, "
     "last_seen_at, deleted_at"
 )
 
@@ -98,7 +98,8 @@ LIMIT :limit
 
 LISTING_COLUMNS = (
     "id, source, external_id, url, title, description, price, previous_price, currency, city, region, condition, "
-    "category, delivery_available, latitude, longitude, posted_at, is_test, first_seen_at, last_seen_at, "
+    "category, delivery_available, latitude, longitude, posted_at, seller_created_at, seller_is_business, is_test, "
+    "first_seen_at, last_seen_at, "
     "price_changed_at"
 )
 UPSERT_LISTING = f"""
@@ -106,10 +107,12 @@ WITH old AS (
     SELECT price FROM listings WHERE source = :source AND external_id = :external_id
 ), ins AS (
     INSERT INTO listings (source, external_id, url, title, description, price, currency, city, region, condition,
-                          category, delivery_available, latitude, longitude, posted_at, is_test,
+                          category, delivery_available, latitude, longitude, posted_at, seller_created_at,
+                          seller_is_business, is_test,
                           first_seen_at, last_seen_at)
     VALUES (:source, :external_id, :url, :title, :description, :price, :currency, :city, :region, :condition,
-            :category, :delivery_available, :latitude, :longitude, :posted_at, :is_test, :now, :now)
+            :category, :delivery_available, :latitude, :longitude, :posted_at, :seller_created_at,
+            :seller_is_business, :is_test, :now, :now)
     ON CONFLICT (source, external_id) DO UPDATE SET
         url = EXCLUDED.url,
         title = EXCLUDED.title,
@@ -122,6 +125,8 @@ WITH old AS (
         delivery_available = COALESCE(EXCLUDED.delivery_available, listings.delivery_available),
         latitude = COALESCE(EXCLUDED.latitude, listings.latitude),
         longitude = COALESCE(EXCLUDED.longitude, listings.longitude),
+        seller_created_at = COALESCE(EXCLUDED.seller_created_at, listings.seller_created_at),
+        seller_is_business = COALESCE(EXCLUDED.seller_is_business, listings.seller_is_business),
         previous_price = CASE WHEN EXCLUDED.price IS NOT NULL AND EXCLUDED.price IS DISTINCT FROM listings.price
                               THEN listings.price ELSE listings.previous_price END,
         price_changed_at = CASE WHEN EXCLUDED.price IS NOT NULL AND EXCLUDED.price IS DISTINCT FROM listings.price
@@ -276,7 +281,7 @@ PURGE_RUNS = "DELETE FROM monitoring_runs WHERE started_at < :before"
 # Columns that may be changed through dynamic UPDATEs (whitelists; values are always bound parameters).
 USER_UPDATABLE = {
     "username", "first_name", "language", "timezone", "is_suspended", "suspended_reason", "trial_used",
-    "bot_blocked", "notify_price_drops", "quiet_start_hour", "quiet_end_hour", "terms_accepted_at",
+    "bot_blocked", "notify_price_drops", "hide_new_sellers", "quiet_start_hour", "quiet_end_hour", "terms_accepted_at",
     "last_seen_at", "deleted_at",
 }
 SEARCH_UPDATABLE = {

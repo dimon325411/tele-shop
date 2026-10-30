@@ -305,6 +305,8 @@ async def cb_settings(cb: CallbackQuery, ctl: Controller, user, state: FSMContex
         await cb.message.answer(t("settings.ask_quiet", user.language))
     elif action == "pricedrop":
         await edit_or_send(cb, await ctl.toggle_price_drops(user))
+    elif action == "newsellers":
+        await edit_or_send(cb, await ctl.toggle_new_sellers(user))
     elif action == "delete":
         await edit_or_send(cb, ctl.confirm_delete_account(user))
     elif action == "delete_confirm":

@@ -249,7 +249,7 @@ class MemoryRepository:
         stored.title = listing.title
         stored.url = listing.url
         for name in ("description", "city", "region", "condition", "category", "delivery_available",
-                     "latitude", "longitude", "currency"):
+                     "latitude", "longitude", "currency", "seller_created_at", "seller_is_business"):
             new = getattr(listing, name)
             if new is not None:
                 setattr(stored, name, new)

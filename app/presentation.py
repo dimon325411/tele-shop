@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from app.domain.models import Plan, Search
 from app.domain.pricing import verdict_key
+from app.domain.sellers import is_new_account
 from app.i18n import esc, format_interval, t
 from app.services.notifications import OutgoingListing
 from app.sources.registry import DISPLAY_NAMES
@@ -63,7 +64,16 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
         lines.append(t("notify.location", lang, location=esc(location)))
     if listing.condition:
         lines.append(t("notify.condition", lang, condition=t(f"condition.{listing.condition}", lang)))
+    if listing.posted_at is not None:
+        lines.append(t("notify.posted_at", lang, time=fmt_dt(listing.posted_at, user.timezone, lang)))
     lines.append(t("notify.found_at", lang, time=fmt_dt(listing.first_seen_at or now, user.timezone, lang)))
+    if listing.seller_created_at is not None:
+        since = listing.seller_created_at.astimezone(ZoneInfo(user.timezone))
+        if is_new_account(listing.seller_created_at, now, user.timezone):
+            lines.append(t("notify.seller_new", lang, date=since.strftime("%d.%m.%Y")))
+        else:
+            lines.append(t("notify.seller_since", lang, date=since.strftime("%m.%Y"),
+                           business=t("notify.seller_business", lang) if listing.seller_is_business else ""))
     if item.search_name:
         lines.append(t("notify.search", lang, name=esc(item.search_name)))
     if listing.is_test:

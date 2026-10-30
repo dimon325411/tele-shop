@@ -60,6 +60,8 @@ class Listing:
     latitude: float | None = None
     longitude: float | None = None
     posted_at: datetime | None = None
+    seller_created_at: datetime | None = None  # account creation date of the seller (anti-scam signal)
+    seller_is_business: bool | None = None
     is_test: bool = False
 
 
@@ -124,6 +126,7 @@ class User:
     trial_used: bool = False
     bot_blocked: bool = False
     notify_price_drops: bool = True
+    hide_new_sellers: bool = False
     quiet_start_hour: int | None = None
     quiet_end_hour: int | None = None
     terms_accepted_at: datetime | None = None

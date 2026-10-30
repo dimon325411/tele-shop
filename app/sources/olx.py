@@ -140,6 +140,8 @@ def parse_offers(payload: str | bytes | dict) -> list[Listing]:
             latitude=mapdata.get("lat") if isinstance(mapdata, dict) else None,
             longitude=mapdata.get("lon") if isinstance(mapdata, dict) else None,
             posted_at=_dt(item.get("created_time")),
+            seller_created_at=_dt((item.get("user") or {}).get("created")) if isinstance(item.get("user"), dict) else None,
+            seller_is_business=item.get("business") if isinstance(item.get("business"), bool) else None,
             is_test=False,
         ))
     if items and not listings and len(promoted) < len(items):

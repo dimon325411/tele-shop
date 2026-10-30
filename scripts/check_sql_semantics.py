@@ -64,12 +64,14 @@ def main(dsn: str) -> None:
         values = dict(source="'mock'", external_id="'x1'", url="'https://example.invalid/1'", title="'T'",
                       description="NULL", price=price, currency="'PLN'", city="'Kraków'", region="NULL",
                       condition="'used'", category="NULL", delivery_available="true", latitude="NULL",
-                      longitude="NULL", posted_at="NULL", is_test="true", now=f"'{now}'")
+                      longitude="NULL", posted_at="NULL", is_test="true", now=f"'{now}'",
+                      seller_created_at="'2013-05-08 20:59+02'" if price == "100" else "NULL",
+                      seller_is_business="NULL")
         return f"EXECUTE up({', '.join(values[n] for n in order)});\n"
 
     out = psql(dsn, upsert + ex_upsert("100", "2026-10-24 10:00+00") +
                "SELECT 'sep';" + ex_upsert("80", "2026-10-24 11:00+00") + "SELECT 'sep';" + ex_upsert("NULL", "2026-10-24 12:00+00")
-               + "SELECT price, previous_price, first_seen_at < last_seen_at FROM listings;")
+               + "SELECT price, previous_price, first_seen_at < last_seen_at, seller_created_at IS NOT NULL FROM listings;")
     rows = out.split("\n")
     first, second, third = rows[0], rows[2], rows[4]
     cols = q.LISTING_COLUMNS.replace(" ", "").split(",") + ["inserted", "old_price"]
@@ -80,7 +82,7 @@ def main(dsn: str) -> None:
     check("upsert#2 old_price", get(second, "old_price"), "100.00")
     check("upsert#2 previous_price", get(second, "previous_price"), "100.00")
     check("upsert#3 keeps price when missing", get(third, "price"), "80.00")
-    check("final row", rows[-1], "80.00|100.00|t")
+    check("final row (seller age kept when later missing)", rows[-1], "80.00|100.00|t|t")
 
     # notification dedup + claim
     enq = prep("enq", q.ENQUEUE_NOTIFICATION)

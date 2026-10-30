@@ -17,6 +17,7 @@ from typing import Protocol
 from app.config import Settings
 from app.domain.models import Notification, NotificationStatus, StoredListing, User
 from app.domain.pricing import PriceStats, price_stats
+from app.domain.sellers import is_new_account
 from app.domain.timing import Clock, backoff_seconds, in_quiet_hours, local_day_start_utc, quiet_hours_end, utcnow
 from app.services.subscriptions import SubscriptionService
 from app.storage.repo import Repository
@@ -61,6 +62,7 @@ class DeliveryReport:
     failed: int = 0
     retried: int = 0
     cancelled: int = 0
+    hidden_new_seller: int = 0
 
 
 class NotificationService:
@@ -111,6 +113,11 @@ class NotificationService:
             await self.repo.finish_notification(n.id, NotificationStatus.PENDING.value, now, None,
                                                 next_attempt_at=until, count_attempt=False)
             report.deferred += 1
+            return
+        if user.hide_new_sellers and is_new_account(listing.seller_created_at, now, user.timezone):
+            await self.repo.finish_notification(n.id, NotificationStatus.CANCELLED.value, now,
+                                                "hidden: new seller account", count_attempt=False)
+            report.hidden_new_seller += 1
             return
         sent_today = await self.repo.count_sent_since(user.id, local_day_start_utc(now, user.timezone))
         if sent_today >= access.plan.max_notifications_per_day:

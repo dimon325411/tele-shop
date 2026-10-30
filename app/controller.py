@@ -229,6 +229,8 @@ class Controller:
             [Button(t("btn.quiet_hours", lang), callback="settings:quiet")],
             [Button(t("btn.price_drops_on" if user.notify_price_drops else "btn.price_drops_off", lang),
                     callback="settings:pricedrop")],
+            [Button(t("btn.new_sellers_hide" if user.hide_new_sellers else "btn.new_sellers_warn", lang),
+                    callback="settings:newsellers")],
             [Button(t("btn.delete_account", lang), callback="settings:delete")],
         ]
         return Reply(t("settings.title", lang, quiet=quiet, tz=esc(user.timezone)), rows)
@@ -246,6 +248,11 @@ class Controller:
     async def toggle_price_drops(self, user: User) -> Reply:
         await self.c.users.set_price_drop_alerts(user, not user.notify_price_drops)
         user.notify_price_drops = not user.notify_price_drops
+        return self.settings_view(user)
+
+    async def toggle_new_sellers(self, user: User) -> Reply:
+        await self.c.users.set_hide_new_sellers(user, not user.hide_new_sellers)
+        user.hide_new_sellers = not user.hide_new_sellers
         return self.settings_view(user)
 
     def confirm_delete_account(self, user: User) -> Reply:

@@ -61,7 +61,8 @@ async def deliver_notifications(c: Container, max_batches: int = 5) -> int:
     total = 0
     for _ in range(max_batches):
         report = await c.notifications.deliver_batch()
-        handled = report.sent + report.deferred + report.limited + report.failed + report.retried + report.cancelled
+        handled = report.sent + report.deferred + report.limited + report.failed + report.retried + report.cancelled \
+            + report.hidden_new_seller
         total += report.sent
         if handled < c.settings.notification_batch_size:
             break
