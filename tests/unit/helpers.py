@@ -54,17 +54,17 @@ class App:
     """Wires all services exactly like production, but with memory storage and fakes."""
 
     def __init__(self, settings: Settings | None = None, mock: MockSource | None = None,
-                 enabled: list[str] | None = None) -> None:
+                 enabled: list[str] | None = None, repo=None, locker=None) -> None:
         self.settings = settings or Settings(admin_ids=[999], payments_mode=PaymentsMode.TEST,
                                              enabled_sources=enabled or ["mock"])
         self.clock = FakeClock()
-        self.repo = MemoryRepository()
+        self.repo = repo if repo is not None else MemoryRepository()
         self.mock = mock or MockSource(grow=False)
         self.registry = SourceRegistry(
             {"mock": self.mock, "olx": OlxSource(), "allegro_lokalnie": AllegroLokalnieSource()},
             self.settings.enabled_sources,
         )
-        self.locker = MemoryLocker()
+        self.locker = locker if locker is not None else MemoryLocker()
         self.notifier = FakeNotifier()
         self.subs = SubscriptionService(self.repo, self.clock)
         self.users = UserService(self.repo, self.subs, self.settings, self.clock)

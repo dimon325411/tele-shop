@@ -1,0 +1,92 @@
+name: telegram-market
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://market:${POSTGRES_PASSWORD:-market}@postgres:5432/market
+    REDIS_URL: redis://redis:6379/0
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: market
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-market}
+      POSTGRES_DB: market
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U market -d market"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  bot:
+    <<: *app
+    command: ["python", "-m", "app.bot.main"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["arq", "app.worker.main.WorkerSettings"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    command: ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # docker compose run --rm tests
+  tests:
+    <<: *app
+    profiles: ["tests"]
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://market:${POSTGRES_PASSWORD:-market}@postgres:5432/market_test
+      TEST_DATABASE_ADMIN_URL: postgresql+psycopg://market:${POSTGRES_PASSWORD:-market}@postgres:5432/market
+      TEST_REDIS_URL: redis://redis:6379/15
+      PGPASSWORD: ${POSTGRES_PASSWORD:-market}
+    command: >
+      sh -c "pytest -q &&
+             python scripts/check_sql.py 'host=postgres user=market dbname=market' &&
+             python scripts/check_sql_semantics.py 'host=postgres user=market'"
+
+volumes:
+  pgdata:
+  redisdata:

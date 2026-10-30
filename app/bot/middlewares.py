@@ -47,15 +47,18 @@ class AppMiddleware(BaseMiddleware):
                 await event.answer(t("error.rate_limited"))
             return None
 
+        text = event.text if isinstance(event, Message) and event.text else ""
+        command = text.split()[0].split("@")[0] if text.startswith("/") else ""
         users = self.container.users
         user = await self.container.repo.get_user_by_telegram_id(from_user.id)
         if user is None or user.deleted_at is not None:
+            if command == "/start":
+                # /start registers the user itself (and shows the trial welcome)
+                return await handler(event, data)
             user, _ = await users.register(from_user.id, from_user.username, from_user.first_name)
         data["user"] = user
 
         if user.is_suspended:
-            text = event.text if isinstance(event, Message) and event.text else ""
-            command = text.split()[0].split("@")[0] if text.startswith("/") else ""
             if command not in ALWAYS_ALLOWED:
                 if isinstance(event, CallbackQuery):
                     await event.answer(t("error.suspended", user.language), show_alert=True)
