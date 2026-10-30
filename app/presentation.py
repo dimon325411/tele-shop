@@ -104,6 +104,33 @@ def fmt_variant(variant: str | None) -> str:
     return variant[:-2] + " " + variant[-2:].upper()
 
 
+TELEGRAM_TEXT_LIMIT = 4096
+
+
+def split_message(text: str, limit: int = TELEGRAM_TEXT_LIMIT - 96) -> list[str]:
+    """Split a long HTML message at line breaks (our tags never span lines) into Telegram-sized parts."""
+    if len(text) <= limit:
+        return [text]
+    parts: list[str] = []
+    current = ""
+    for line in text.split("\n"):
+        while len(line) > limit:  # a single huge line (should not happen): hard cut
+            if current:
+                parts.append(current)
+                current = ""
+            parts.append(line[:limit])
+            line = line[limit:]
+        candidate = f"{current}\n{line}" if current else line
+        if len(candidate) > limit:
+            parts.append(current)
+            current = line
+        else:
+            current = candidate
+    if current.strip():
+        parts.append(current)
+    return [p for p in parts if p.strip()]
+
+
 HOT_MARK_PERCENT = 10  # "🔥 Okazja" header when the price is at least this much below the median
 CAPTION_LIMIT = 1024  # Telegram limit for photo captions
 

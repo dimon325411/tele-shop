@@ -20,6 +20,8 @@ from app.storage.repo import Repository
 NEAR_MISS_LIMIT = 5
 RECENT_LIMIT = 500
 BASELINE_WINDOW = timedelta(minutes=5)
+MAX_SEARCH_LINES = 15  # 50 searches would not fit into one Telegram message
+MAX_QUIET_NAMES = 12
 
 
 @dataclass
@@ -81,14 +83,20 @@ class DigestService:
                 parts.append(t("digest.source_problem", lang, source=esc(state.source)))
         if lines_per_search:
             lines_per_search.sort(key=lambda x: -x[0])
-            parts.append("\n".join(line for _, line in lines_per_search))
+            shown = lines_per_search[:MAX_SEARCH_LINES]
+            text = "\n".join(line for _, line in shown)
+            if len(lines_per_search) > len(shown):
+                text += "\n" + t("digest.more", lang, count=len(lines_per_search) - len(shown))
+            parts.append(text)
         near = sorted((n for n in near if n.discount > 0), key=lambda n: -n.discount)[:NEAR_MISS_LIMIT]
         if near:
             parts.append(t("digest.near_title", lang) + "\n" + "\n".join(
                 t("digest.near_item", lang, pct=n.discount, name=esc(n.search_name), title=esc(n.title[:60]),
                   price=fmt_price(n.price), currency=esc(n.currency), url=esc(n.url)) for n in near))
         if quiet:
-            parts.append(t("digest.quiet", lang, names=esc(", ".join(quiet))))
+            names = ", ".join(quiet[:MAX_QUIET_NAMES]) + (f" (+{len(quiet) - MAX_QUIET_NAMES})"
+                                                          if len(quiet) > MAX_QUIET_NAMES else "")
+            parts.append(t("digest.quiet", lang, names=esc(names)))
         parts.append(t("digest.footer", lang))
         return "\n\n".join(parts)
 

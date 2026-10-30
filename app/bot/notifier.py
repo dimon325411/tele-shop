@@ -34,8 +34,11 @@ class TelegramNotifier:
         return msg.message_id
 
     async def send_text(self, telegram_id: int, text: str) -> None:
+        from app.presentation import split_message
+
         try:
-            await self.bot.send_message(telegram_id, text)
+            for part in split_message(text):
+                await self.bot.send_message(telegram_id, part)
         except TelegramRetryAfter as exc:
             raise NotifierRetryLater(exc.retry_after) from exc
         except (TelegramForbiddenError, TelegramNotFound) as exc:

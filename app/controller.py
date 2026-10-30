@@ -25,6 +25,9 @@ from app.sources.registry import DISPLAY_NAMES
 log = logging.getLogger(__name__)
 
 
+SEARCHES_PER_PAGE = 8
+
+
 @dataclass
 class Reply:
     text: str
@@ -92,16 +95,29 @@ class Controller:
         return Reply(t("paysupport", user.language, contact=esc(self.settings.support_contact), tg_id=user.telegram_id))
 
     # ------------------------------------------------------------ searches
-    async def list_searches(self, user: User) -> Reply:
+    async def list_searches(self, user: User, page: int = 0) -> Reply:
         lang = user.language
-        searches = await self.c.searches.list(user)
+        all_searches = await self.c.searches.list(user)
         monitored = await self.c.searches.monitored_ids(user)
+        pages = max(1, -(-len(all_searches) // SEARCHES_PER_PAGE))
+        page = min(max(page, 0), pages - 1)
+        searches = all_searches[page * SEARCHES_PER_PAGE:(page + 1) * SEARCHES_PER_PAGE]
         text = render_search_list(searches, monitored, user.timezone, lang)
+        if pages > 1:
+            text += "\n\n" + t("searches.page", lang, page=page + 1, pages=pages, total=len(all_searches),
+                                 active=sum(1 for s in all_searches if s.is_active))
         rows: list[list[Button]] = []
         for s in searches:
             toggle = (Button(f"⏸ {s.name}", callback=f"s:pause:{s.id}") if s.is_active
                       else Button(f"▶️ {s.name}", callback=f"s:resume:{s.id}"))
             rows.append([toggle, Button("🗑", callback=f"s:delete:{s.id}")])
+        if pages > 1:
+            nav = []
+            if page > 0:
+                nav.append(Button(t("btn.prev_page", lang), callback=f"sl:{page - 1}"))
+            if page < pages - 1:
+                nav.append(Button(t("btn.next_page", lang), callback=f"sl:{page + 1}"))
+            rows.append(nav)
         rows.append([Button(t("btn.new_search", lang), callback="menu:new")])
         return Reply(text, rows)
 

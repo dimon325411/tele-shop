@@ -236,3 +236,62 @@ class PersonalPlanSyncTests(unittest.IsolatedAsyncioTestCase):
         await app.repo.update_plan("pro", max_active_searches=7)  # admin changes to sold plans stay
         await app.subs.seed_plans()
         self.assertEqual((await app.repo.get_plan_by_code("pro")).max_active_searches, 7)
+
+
+class ManySearchesTests(unittest.IsolatedAsyncioTestCase):
+    """50 searches (the reseller pack): every message must fit into Telegram's 4096 characters."""
+
+    async def asyncSetUp(self):
+        from app.config import PaymentsMode
+
+        settings = Settings(admin_ids=[999], payments_mode=PaymentsMode.TEST, enabled_sources=["mock", "olx"],
+                            personal_mode=True)
+        self.app = await App(settings=settings, enabled=["mock", "olx"]).setup()
+        self.user = await self.app.user(999)
+        await self.app.searches.create(self.user, draft(name="iPhone 15 Pro", keywords=["iphone 15 pro"]))
+        created, present, error = await self.app.searches.create_pack(self.user)
+        self.assertIsNone(error)
+        self.assertEqual(len(created) + len(present), 50)
+
+    async def test_search_list_is_paged(self):
+        from app.controller import Controller
+        from tests.unit.test_controller_jobs import container
+
+        ctl = Controller(container(self.app))
+        first = await ctl.list_searches(self.user)
+        self.assertLess(len(first.text), 4096)
+        self.assertIn("Strona 1/7", first.text)
+        callbacks = [b.callback for row in first.buttons for b in row if b.callback]
+        self.assertIn("sl:1", callbacks)
+        self.assertNotIn("sl:-1", callbacks)
+        last = await ctl.list_searches(self.user, 99)  # clamped to the last page
+        self.assertIn("Strona 7/7", last.text)
+        self.assertLess(len(last.text), 4096)
+
+    async def test_digest_and_deals_fit(self):
+        from app.analytics import Analytics
+        from app.services.digest import DigestService
+        from tests.unit.test_controller_jobs import container
+
+        app = self.app
+        for s in await app.searches.list(self.user):  # every search sees a few new listings today
+            for i in range(3):
+                await app.repo.add_match(s.id, (await app.repo.upsert_listing(
+                    phone(f"{s.id}-{i}", 1000 + i, title=f"{s.name} {i}", posted=app.clock()),
+                    app.clock() + timedelta(hours=1))).listing.id, self.user.id, [])
+        text = await DigestService(app.repo, app.monitoring.market, app.clock).build(
+            self.user, app.clock() + timedelta(hours=2))
+        self.assertLess(len(text), 4096)
+        self.assertIn("…i jeszcze 35 wyszukiwań", text)
+        deals_text, _ = await Analytics(container(app)).deals(self.user, await app.searches.list(self.user))
+        self.assertIn("wszystkie wyszukiwania (50)", deals_text)
+
+    def test_split_message(self):
+        from app.presentation import split_message
+
+        text = "\n".join(f"<b>linia {i}</b> " + "x" * 80 for i in range(200))
+        parts = split_message(text)
+        self.assertGreater(len(parts), 1)
+        self.assertTrue(all(len(p) <= 4096 for p in parts))
+        self.assertEqual("\n".join(parts), text)  # nothing lost, tags never cut
+        self.assertEqual(split_message("krótko"), ["krótko"])

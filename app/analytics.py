@@ -36,9 +36,10 @@ class Analytics:
             pct = spread or s.criteria.deal_min_discount or DEFAULT_SPREAD
             deals += [(s, d) for d in await self.market.find_deals(s, pct, limit=10)]
         deals.sort(key=lambda sd: -sd[1].discount)
-        deals = deals[:5]
+        deals = deals[:5 if len(searches) == 1 else 10]
         pct = spread or (searches[0].criteria.deal_min_discount if len(searches) == 1 else None) or DEFAULT_SPREAD
-        names = ", ".join(s.name for s in searches)
+        names = ", ".join(s.name for s in searches) if len(searches) <= 3 else t("deals.all_name", lang,
+                                                                                  count=len(searches))
         if not deals:
             count = 0
             for s in searches:
@@ -49,7 +50,8 @@ class Analytics:
         for i, (s, d) in enumerate(deals, 1):
             l = d.listing
             variant = f" · {fmt_variant(d.variant)}" if d.variant else ""
-            lines.append(t("deals.item", lang, n=i, title=esc(l.title), price=fmt_price(l.price),
+            title = l.title if len(searches) == 1 else f"{s.name}: {l.title}"
+            lines.append(t("deals.item", lang, n=i, title=esc(title), price=fmt_price(l.price),
                            currency=esc(l.currency or "PLN"), pct=d.discount, median=fmt_price(d.stats.median),
                            count=d.stats.count, variant=variant, profit=fmt_price(d.potential_profit),
                            posted=fmt_dt(l.posted_at or l.first_seen_at, user.timezone, lang)))

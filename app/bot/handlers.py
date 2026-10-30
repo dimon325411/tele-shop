@@ -17,7 +17,7 @@ from app.container import Container
 from app.controller import Controller, Reply
 from app.domain.plans import AccessDenied
 from app.i18n import esc, format_interval, t
-from app.presentation import Button, fmt_dt
+from app.presentation import TELEGRAM_TEXT_LIMIT, Button, fmt_dt, split_message
 from app.services.payments import SuccessfulPaymentData
 from app.wizard import SearchWizard
 
@@ -40,12 +40,18 @@ class SettingsInput(StatesGroup):
 
 
 async def send(message: Message, reply: Reply) -> None:
-    await message.answer(reply.text, reply_markup=markup(reply.buttons) if reply.buttons else None,
-                         link_preview_options=NO_PREVIEW)
+    parts = split_message(reply.text)
+    for i, part in enumerate(parts):
+        last = i == len(parts) - 1
+        await message.answer(part, reply_markup=markup(reply.buttons) if reply.buttons and last else None,
+                             link_preview_options=NO_PREVIEW)
 
 
 async def edit_or_send(cb: CallbackQuery, reply: Reply) -> None:
     kb = markup(reply.buttons) if reply.buttons else None
+    if len(reply.text) > TELEGRAM_TEXT_LIMIT:
+        await send(cb.message, reply)
+        return
     try:
         await cb.message.edit_text(reply.text, reply_markup=kb, link_preview_options=NO_PREVIEW)
     except TelegramBadRequest:  # message too old / identical / not editable
@@ -215,10 +221,16 @@ async def cb_search(cb: CallbackQuery, ctl: Controller, user) -> None:
     reply = await ctl.search_action(user, action, int(sid))
     await cb.answer()
     body = (getattr(cb.message, "text", None) or getattr(cb.message, "caption", None) or "")
-    if body.startswith(("🆕", "📉")):  # a notification (text or photo caption) is never overwritten
+    if body.startswith(("🆕", "📉", "🔥")):  # a notification (text or photo caption) is never overwritten
         await cb.message.answer(reply.text, reply_markup=markup(reply.buttons) if reply.buttons else None)
     else:
         await edit_or_send(cb, reply)  # notifications are never overwritten
+
+
+@router.callback_query(F.data.regexp(r"^sl:\d+$"))
+async def cb_search_page(cb: CallbackQuery, ctl: Controller, user) -> None:
+    await cb.answer()
+    await edit_or_send(cb, await ctl.list_searches(user, int(cb.data.split(":")[1])))
 
 
 # ------------------------------------------------------------- status/plan
@@ -389,7 +401,7 @@ async def send_deals(message: Message, user, container: Container, searches, spr
     from app.analytics import Analytics
 
     text, buttons = await Analytics(container).deals(user, searches, spread)
-    await message.answer(text, reply_markup=markup(buttons) if buttons else None, link_preview_options=NO_PREVIEW)
+    await send(message, Reply(text, buttons))
 
 
 async def send_chart_options(message: Message, user, container: Container, search) -> None:
@@ -422,13 +434,18 @@ async def cmd_deals(message: Message, user, container: Container) -> None:
     if len(searches) == 1:
         await send_deals(message, user, container, searches)
         return
-    rows = [[Button(s.name, callback=f"dl:{s.id}")] for s in searches]
+    rows = [[Button(t("deals.all_button", user.language), callback="dl:all")]]
+    rows += [[Button(s.name, callback=f"dl:{s.id}")] for s in searches]
     await message.answer(t("deals.choose", user.language), reply_markup=markup(rows))
 
 
-@router.callback_query(F.data.regexp(r"^dl:\d+$"))
+@router.callback_query(F.data.regexp(r"^dl:(\d+|all)$"))
 async def cb_deals(cb: CallbackQuery, user, container: Container) -> None:
     await cb.answer()
+    if cb.data == "dl:all":
+        searches = [s for s in await container.searches.list(user) if s.is_active]
+        await send_deals(cb.message, user, container, searches)
+        return
     try:
         search = await container.searches.get_owned(user, int(cb.data.split(":")[1]))
     except AccessDenied as exc:
@@ -513,10 +530,13 @@ async def fallback_text(message: Message, ctl: Controller, user, container: Cont
     """Free text: "wykres iphone 15 pro", "покажи айфон на котором заработаем 15%"..."""
     from app.intents import detect
 
-    intent, candidates, pct = detect(message.text, await container.searches.list(user))
+    searches = await container.searches.list(user)
+    intent, candidates, pct = detect(message.text, searches)
     if intent is None:
         await send(message, Reply(t("menu.title", user.language), ctl.help(user.language).buttons))
         return
+    if intent == "deals" and not candidates:  # "на чём заработаем?" without a model -> all searches
+        candidates = [s for s in searches if s.is_active]
     if not candidates:
         await message.answer(t("intent.no_search", user.language))
         return
