@@ -92,3 +92,27 @@ class HideNewSellersTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PhotoTests(unittest.TestCase):
+    def test_parser_takes_first_photo_sized(self):
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        data["data"][0]["photos"] = [
+            {"id": 1, "link": "https://ireland.apollo.olxcdn.com:443/v1/files/abc-PL/image;s={width}x{height};r=90"},
+            {"id": 2, "link": "https://ireland.apollo.olxcdn.com:443/v1/files/def-PL/image;s={width}x{height}"}]
+        first, second = parse_offers(data)
+        self.assertEqual(first.photo_url, "https://ireland.apollo.olxcdn.com:443/v1/files/abc-PL/image;s=1000x750;r=90")
+        self.assertIsNone(second.photo_url)
+
+    def test_photo_rules(self):
+        from app.presentation import photo_for
+
+        it = item(None)
+        it.listing.photo_url = "https://cdn.example/x.jpg"
+        self.assertEqual(photo_for(it, "short"), "https://cdn.example/x.jpg")
+        self.assertIsNone(photo_for(it, "x" * 1025))  # caption limit -> plain text message
+        it.listing.photo_url = "http://insecure/x.jpg"
+        self.assertIsNone(photo_for(it, "short"))
+        it.listing.photo_url = "https://cdn.example/x.jpg"
+        it.listing.is_test = True
+        self.assertIsNone(photo_for(it, "short"))

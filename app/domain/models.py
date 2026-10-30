@@ -62,6 +62,7 @@ class Listing:
     posted_at: datetime | None = None
     seller_created_at: datetime | None = None  # account creation date of the seller (anti-scam signal)
     seller_is_business: bool | None = None
+    photo_url: str | None = None  # first photo of the listing (shown in the notification)
     is_test: bool = False
 
 

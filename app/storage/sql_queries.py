@@ -98,7 +98,7 @@ LIMIT :limit
 
 LISTING_COLUMNS = (
     "id, source, external_id, url, title, description, price, previous_price, currency, city, region, condition, "
-    "category, delivery_available, latitude, longitude, posted_at, seller_created_at, seller_is_business, is_test, "
+    "category, delivery_available, latitude, longitude, posted_at, seller_created_at, seller_is_business, photo_url, is_test, "
     "first_seen_at, last_seen_at, "
     "price_changed_at"
 )
@@ -108,11 +108,11 @@ WITH old AS (
 ), ins AS (
     INSERT INTO listings (source, external_id, url, title, description, price, currency, city, region, condition,
                           category, delivery_available, latitude, longitude, posted_at, seller_created_at,
-                          seller_is_business, is_test,
+                          seller_is_business, photo_url, is_test,
                           first_seen_at, last_seen_at)
     VALUES (:source, :external_id, :url, :title, :description, :price, :currency, :city, :region, :condition,
             :category, :delivery_available, :latitude, :longitude, :posted_at, :seller_created_at,
-            :seller_is_business, :is_test, :now, :now)
+            :seller_is_business, :photo_url, :is_test, :now, :now)
     ON CONFLICT (source, external_id) DO UPDATE SET
         url = EXCLUDED.url,
         title = EXCLUDED.title,
@@ -127,6 +127,7 @@ WITH old AS (
         longitude = COALESCE(EXCLUDED.longitude, listings.longitude),
         seller_created_at = COALESCE(EXCLUDED.seller_created_at, listings.seller_created_at),
         seller_is_business = COALESCE(EXCLUDED.seller_is_business, listings.seller_is_business),
+        photo_url = COALESCE(EXCLUDED.photo_url, listings.photo_url),
         previous_price = CASE WHEN EXCLUDED.price IS NOT NULL AND EXCLUDED.price IS DISTINCT FROM listings.price
                               THEN listings.price ELSE listings.previous_price END,
         price_changed_at = CASE WHEN EXCLUDED.price IS NOT NULL AND EXCLUDED.price IS DISTINCT FROM listings.price

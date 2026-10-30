@@ -66,7 +66,7 @@ def main(dsn: str) -> None:
                       condition="'used'", category="NULL", delivery_available="true", latitude="NULL",
                       longitude="NULL", posted_at="NULL", is_test="true", now=f"'{now}'",
                       seller_created_at="'2013-05-08 20:59+02'" if price == "100" else "NULL",
-                      seller_is_business="NULL")
+                      seller_is_business="NULL", photo_url="NULL")
         return f"EXECUTE up({', '.join(values[n] for n in order)});\n"
 
     out = psql(dsn, upsert + ex_upsert("100", "2026-10-24 10:00+00") +

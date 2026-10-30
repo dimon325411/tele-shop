@@ -88,6 +88,19 @@ def _name(obj: Any) -> str | None:
     return obj.get("name") if isinstance(obj, dict) and obj.get("name") else None
 
 
+PHOTO_SIZE = (1000, 750)
+
+
+def _photo(item: dict) -> str | None:
+    photos = item.get("photos")
+    if not isinstance(photos, list) or not photos or not isinstance(photos[0], dict):
+        return None
+    link = photos[0].get("link")
+    if not isinstance(link, str) or not link.startswith("https://"):
+        return None
+    return link.replace("{width}", str(PHOTO_SIZE[0])).replace("{height}", str(PHOTO_SIZE[1]))
+
+
 def _delivery(item: dict) -> bool | None:
     delivery = item.get("delivery")
     if isinstance(delivery, dict):
@@ -142,6 +155,7 @@ def parse_offers(payload: str | bytes | dict) -> list[Listing]:
             posted_at=_dt(item.get("created_time")),
             seller_created_at=_dt((item.get("user") or {}).get("created")) if isinstance(item.get("user"), dict) else None,
             seller_is_business=item.get("business") if isinstance(item.get("business"), bool) else None,
+            photo_url=_photo(item),
             is_test=False,
         ))
     if items and not listings and len(promoted) < len(items):

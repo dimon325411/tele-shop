@@ -87,6 +87,17 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     return "\n".join(lines), buttons
 
 
+CAPTION_LIMIT = 1024  # Telegram limit for photo captions
+
+
+def photo_for(item: OutgoingListing, text: str) -> str | None:
+    """Photo URL to send with the notification, or None to send plain text."""
+    url = item.listing.photo_url
+    if not url or not url.startswith("https://") or item.listing.is_test or len(text) > CAPTION_LIMIT:
+        return None
+    return url
+
+
 def describe_criteria(search_or_draft, lang: str | None = None) -> str:
     """Compact human description of search criteria (works for Search and SearchDraft)."""
     c = getattr(search_or_draft, "criteria", search_or_draft)

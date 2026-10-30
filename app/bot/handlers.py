@@ -213,7 +213,8 @@ async def cb_search(cb: CallbackQuery, ctl: Controller, user) -> None:
     _, action, sid = cb.data.split(":")
     reply = await ctl.search_action(user, action, int(sid))
     await cb.answer()
-    if cb.message.text and cb.message.text.startswith(("🆕", "📉")):
+    body = (getattr(cb.message, "text", None) or getattr(cb.message, "caption", None) or "")
+    if body.startswith(("🆕", "📉")):  # a notification (text or photo caption) is never overwritten
         await cb.message.answer(reply.text, reply_markup=markup(reply.buttons) if reply.buttons else None)
     else:
         await edit_or_send(cb, reply)  # notifications are never overwritten
