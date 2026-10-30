@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
-_TOKEN = re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{30,}\b")
+_TOKEN = re.compile(r"(?<!\d)\d{6,12}:[A-Za-z0-9_-]{30,}")
 _DSN_PASSWORD = re.compile(r"(://[^:/@\s]+:)[^@\s]+@")
 
 
