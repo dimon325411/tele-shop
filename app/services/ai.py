@@ -292,13 +292,17 @@ class AdvisorService:
         self._take_quota(user)
         return await self._ask(text, listing.photo_url)
 
-    async def compare_search(self, user: User, search_id: int, days: int = 7) -> tuple[str, list[StoredListing]]:
+    async def compare_search(self, user: User, search_id: int) -> tuple[str, list[StoredListing]]:
+        """Compare offers put up within the last 24 h (older ones are statistics only)."""
+        from app.services.market import FRESH_WINDOW, is_fresh
+
         await self._check_access(user)
         search = await self.repo.get_search(search_id)
         if search is None or search.user_id != user.id:
             raise AIUnavailable("not_found")
         now = self.clock()
-        listings = await self.repo.list_recent_matches(search_id, now - timedelta(days=days), COMPARE_MAX_LISTINGS)
+        recent = await self.repo.list_recent_matches(search_id, now - FRESH_WINDOW, COMPARE_MAX_LISTINGS * 5)
+        listings = [l for l in recent if is_fresh(l, now)][:COMPARE_MAX_LISTINGS]
         if len(listings) < 2:
             raise AIUnavailable("too_few")
         prices = await self.repo.list_comparable_prices(search_id, -1, now - timedelta(days=30), None, None)

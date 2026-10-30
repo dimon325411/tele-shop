@@ -410,8 +410,13 @@ async def cb_ai_compare(cb: CallbackQuery, user, container: Container) -> None:
 
 
 async def _compare_text(user, container: Container, search_id: int) -> str:
+    from app.domain.timing import utcnow
+    from app.presentation import fmt_posted
+
     answer, listings = await container.advisor.compare_search(user, search_id)
-    offers = "\n".join(f"{i + 1}. {l.title} — {l.price if l.price is not None else '?'} {l.currency or ''}\n{l.url}"
+    now = utcnow()
+    offers = "\n".join(f"{i + 1}. {l.title} — {l.price if l.price is not None else '?'} {l.currency or ''}"
+                       f" · 📅 {fmt_posted(l, now, user.timezone, user.language)}\n{l.url}"
                        for i, l in enumerate(listings))
     return f"{answer}\n\n{t('ai.compare_offers', user.language)}\n{offers}"
 

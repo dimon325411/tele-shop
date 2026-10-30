@@ -76,9 +76,10 @@ PACK: list[PackItem] = [
     PackItem("MacBook Air M1", "laptopy", ["macbook air", "m1"], [], 1000),
     PackItem("MacBook Air M2", "laptopy", ["macbook air", "m2"], [], 1500),
     PackItem("MacBook Air M3", "laptopy", ["macbook air", "m3"], [], 2200),
-    PackItem("MacBook Pro M1", "laptopy", ["macbook pro", "m1"], [], 1500),
-    PackItem("MacBook Pro M2", "laptopy", ["macbook pro", "m2"], [], 2200),
-    PackItem("MacBook Pro M3", "laptopy", ["macbook pro", "m3"], [], 3000),
+    # the plain chip only: "M1 Pro" / "M1 Max" machines (14"/16") are a different, pricier market
+    PackItem("MacBook Pro M1", "laptopy", ["macbook pro", "m1"], ["m1 pro", "m1 max"], 1500),
+    PackItem("MacBook Pro M2", "laptopy", ["macbook pro", "m2"], ["m2 pro", "m2 max"], 2200),
+    PackItem("MacBook Pro M3", "laptopy", ["macbook pro", "m3"], ["m3 pro", "m3 max"], 3000),
     # --- desktop PCs (compared with PCs that have the same graphics card)
     PackItem("PC z RTX 3060", "komputery", ["rtx 3060"], ["3060 ti"], 1200),
     PackItem("PC z RTX 3070", "komputery", ["rtx 3070"], ["3070 ti"], 1600),
@@ -89,6 +90,12 @@ PACK: list[PackItem] = [
     PackItem("PC z RTX 5070", "komputery", ["rtx 5070"], ["5070 ti"], 2600),
     PackItem("PC z RTX 5070 Ti", "komputery", ["rtx 5070 ti"], [], 3200),
 ]
+
+
+def criteria_fields(item: PackItem) -> dict:
+    """Matching fields of a pack search (used to update searches created by an older pack version)."""
+    return dict(keywords=list(item.keywords), alt_keywords=list(item.alt), excluded_keywords=list(item.excluded),
+                category=item.category, price_min=Decimal(item.price_min) if item.price_min else None)
 
 
 def draft_kwargs(item: PackItem) -> dict:

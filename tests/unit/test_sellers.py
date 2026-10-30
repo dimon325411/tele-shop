@@ -48,8 +48,8 @@ def item(seller_created, business=False, posted=T0 - timedelta(hours=2)):
 class RenderTests(unittest.TestCase):
     def test_posted_date_and_old_seller(self):
         text, _ = render_listing_notification(item(datetime(2013, 5, 8, tzinfo=UTC), business=True), T0)
-        self.assertIn("📅 opublikowano 24.10.2026 10:00", text)
-        self.assertIn("👤 konto sprzedawcy od 05.2013 (firma)", text)
+        self.assertIn("📅 2 godz. temu (24.10 10:00)", text)
+        self.assertIn("👤 sprzedawca na OLX od 05.2013 (firma)", text)
         self.assertNotIn("Nowe konto", text)
 
     def test_new_seller_warning(self):

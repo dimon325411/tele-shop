@@ -21,6 +21,13 @@ from app.storage.repo import Repository
 ACTIVE_WINDOW = timedelta(days=3)  # a listing seen within this window is considered still on the market
 MARKET_LIMIT = 2000
 ALL_VARIANTS = "all"
+FRESH_WINDOW = timedelta(hours=24)  # only listings put up within this window are shown with links
+
+
+def is_fresh(listing: StoredListing, now: datetime) -> bool:
+    """Put up (or, without a date, first seen) within the last 24 h. Older listings feed statistics only."""
+    posted = listing.posted_at or listing.first_seen_at
+    return posted is not None and posted >= now - FRESH_WINDOW
 
 
 @dataclass
@@ -61,7 +68,14 @@ class MarketService:
         self.clock = clock
 
     async def market(self, search_id: int) -> list[StoredListing]:
-        return await self.repo.list_active_matches(search_id, self.clock() - ACTIVE_WINDOW, MARKET_LIMIT)
+        """Active listings of the search that match its CURRENT criteria (filters may have been tightened)."""
+        from app.domain.matcher import match
+
+        listings = await self.repo.list_active_matches(search_id, self.clock() - ACTIVE_WINDOW, MARKET_LIMIT)
+        search = await self.repo.get_search(search_id)
+        if search is None:
+            return listings
+        return [l for l in listings if match(l, search.criteria).matched]
 
     async def stats_for_listing(self, search_id: int, listing: StoredListing) -> PriceStats | None:
         if listing.price is None:
@@ -80,13 +94,12 @@ class MarketService:
             return None
         return Deal(listing, stats, -diff, variant_of(listing.title))
 
-    async def find_deals(self, search: Search, min_discount: int, fresh_days: int = 7, limit: int = 5) -> list[Deal]:
+    async def find_deals(self, search: Search, min_discount: int, limit: int = 5) -> list[Deal]:
         now = self.clock()
         market = await self.market(search.id)
         deals = []
         for listing in market:
-            posted = listing.posted_at or listing.first_seen_at
-            if posted is None or posted < now - timedelta(days=fresh_days) or not usable(listing):
+            if not is_fresh(listing, now) or not usable(listing):
                 continue
             stats = stats_for(listing, market)
             if stats is None:

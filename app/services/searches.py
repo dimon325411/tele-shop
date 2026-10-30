@@ -94,6 +94,7 @@ class SearchService:
         """Create the reseller pack. Returns (created, already_present, error that stopped it)."""
         from app.domain.reseller_pack import PACK, draft_kwargs
 
+        await self.sync_pack(user)
         existing = {s.name.lower() for s in await self.repo.list_user_searches(user.id)}
         created: list[str] = []
         present: list[str] = []
@@ -107,6 +108,22 @@ class SearchService:
                 return created, present, exc
             created.append(item.name)
         return created, present, None
+
+    async def sync_pack(self, user: User) -> int:
+        """Bring hot-deal searches named like pack items up to the current pack definition (better filters)."""
+        from app.domain.reseller_pack import PACK, criteria_fields
+
+        by_name = {i.name.lower(): i for i in PACK}
+        updated = 0
+        for search in await self.repo.list_user_searches(user.id):
+            item = by_name.get(search.name.lower())
+            if item is None or not search.criteria.deal_min_discount:
+                continue  # only searches that came from the pack (hot-deal mode); manual ones are left alone
+            fields = criteria_fields(item)
+            if any(getattr(search.criteria, k) != v for k, v in fields.items()):
+                await self.repo.update_search(search.id, **fields)
+                updated += 1
+        return updated
 
     async def list(self, user: User) -> list[Search]:
         return await self.repo.list_user_searches(user.id)

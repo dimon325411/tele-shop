@@ -61,7 +61,7 @@ class PriceCompareFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((item.price_stats.median, item.price_stats.count), (D(1000), 7))
         self.assertTrue(item.price_stats.same_condition)
         text, _ = render_listing_notification(item, app.clock())
-        self.assertIn("Podobne w tym samym stanie (7): mediana 1 000 PLN → ta oferta 18% taniej", text)
+        self.assertIn("<b>820 PLN</b> · <b>−18%</b> vs mediana 1 000 (7 ofert, używany)", text)
 
     async def test_not_shown_without_plan_feature(self):
         app = await self._flow("basic")

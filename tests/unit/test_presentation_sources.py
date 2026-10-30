@@ -32,7 +32,7 @@ class PresentationTests(unittest.TestCase):
     def test_notification_contains_required_fields(self):
         text, buttons = render_listing_notification(self._item(), T0)
         for fragment in ["Rower &lt;b&gt;Kross&lt;/b&gt;", "1 200 PLN", "Źródło testowe", "Kraków", "Używany",
-                         "24.10.2026 12:00", "Rowery", "testowe"]:
+                         "24.10 12:00", "Rowery", "testowe"]:
             self.assertIn(fragment, text)
         self.assertEqual(buttons[0][0].url, "https://example.invalid/test-listing/1")
         self.assertEqual(buttons[1][0].callback, "s:pause:3")
@@ -40,7 +40,7 @@ class PresentationTests(unittest.TestCase):
 
     def test_price_drop_and_unknown_price(self):
         text, _ = render_listing_notification(self._item(kind="price_drop", old_price=Decimal("1500")), T0)
-        self.assertIn("<s>1 500 PLN</s>", text)
+        self.assertIn("<s>1 500</s> → <b>1 200 PLN</b>", text)
         item = self._item()
         item.listing.price = None
         self.assertIn("cena nie podana", render_listing_notification(item, T0)[0])

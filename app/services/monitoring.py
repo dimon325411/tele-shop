@@ -128,6 +128,8 @@ class MonitoringService:
         notify_new = search.baseline_done or self.settings.notify_on_first_run
         price_drops = plan.price_drop_alerts and user.notify_price_drops
         successes = temporary_failures = 0
+        deal_mode = bool(search.criteria.deal_min_discount)
+        deal_candidates = []  # hot-deal mode: judged after all sources are stored (the market is complete)
 
         for source in search.sources:
             if source not in plan.allowed_sources:
@@ -173,6 +175,11 @@ class MonitoringService:
                         inserted = await self.repo.add_match(search.id, result.listing.id, user.id, reasons)
                         if inserted:
                             matched += 1
+                            if deal_mode:
+                                # freshness (not "seen after the search was created") decides: a 3-hour-old
+                                # bargain found by the very first check is still worth a message
+                                deal_candidates.append(result.listing)
+                                continue
                             if not notify_new:
                                 continue
                             posted = result.listing.posted_at
@@ -180,21 +187,8 @@ class MonitoringService:
                                     and posted < search.created_at - OLD_LISTING_SLACK:
                                 outcome.suppressed_old += 1
                                 continue
-                            deal_min = search.criteria.deal_min_discount
-                            deal = None
-                            if deal_min:
-                                deal = await self.market.evaluate_deal(search.id, result.listing, deal_min)
-                                if deal is None:
-                                    outcome.suppressed_not_deal += 1
-                                    continue
-                                if not self._is_hot(result.listing):
-                                    outcome.suppressed_not_hot += 1
-                                    continue
                             if outcome.notifications >= MAX_NEW_NOTIFICATIONS_PER_CHECK:
                                 outcome.suppressed_cap += 1
-                                continue
-                            if deal is not None and not await self._screen(deal, plan):
-                                outcome.suppressed_ai += 1
                                 continue
                             outcome.notifications += int(await self.repo.enqueue_notification(
                                 user.id, result.listing.id, search.id, NotificationKind.NEW.value,
@@ -210,6 +204,24 @@ class MonitoringService:
             outcome.matched += matched
             await self.repo.add_run(search.id, source, started, self.clock(), status, fetched, new, matched,
                                     (error or None) and str(error)[:500])
+
+        for listing in deal_candidates:
+            if not self._is_hot(listing):
+                outcome.suppressed_not_hot += 1
+                continue
+            deal = await self.market.evaluate_deal(search.id, listing, search.criteria.deal_min_discount)
+            if deal is None:
+                outcome.suppressed_not_deal += 1
+                continue
+            if outcome.notifications >= MAX_NEW_NOTIFICATIONS_PER_CHECK:
+                outcome.suppressed_cap += 1
+                continue
+            if not await self._screen(deal, plan):
+                outcome.suppressed_ai += 1
+                continue
+            outcome.notifications += int(await self.repo.enqueue_notification(
+                user.id, listing.id, search.id, NotificationKind.NEW.value, f"new:{listing.id}", listing.price,
+                self.clock()))
 
         finished = self.clock()
         fields: dict = {"last_checked_at": finished}
@@ -230,8 +242,8 @@ class MonitoringService:
 
     def _is_hot(self, listing) -> bool:
         now = self.clock()
-        posted = listing.posted_at
-        if posted is not None and now - posted > HOT_MAX_AGE:
+        posted = listing.posted_at or listing.first_seen_at
+        if posted is None or now - posted > HOT_MAX_AGE:
             return False  # refreshed/bumped old listing: somebody had hours to buy it already
         return not is_new_account(listing.seller_created_at, now)
 

@@ -135,9 +135,10 @@ class MarketTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("−13%", text)
         self.assertIn("256 GB", text)
         self.assertIn("zysk ~500", text)
-        self.assertEqual(buttons[0][0].url, "https://example.invalid/test-listing/cheap")
+        self.assertIn('<a href="https://example.invalid/test-listing/cheap">', text)  # link in the text itself
+        self.assertEqual(buttons, [])
         text, _ = await Analytics(container(self.app)).deals(self.user, [self.search], 30)
-        self.assertIn("Brak świeżych ofert ≥30%", text)
+        self.assertIn("brak ofert z ostatnich 24 h tańszych o min. 30%", text)
 
     async def test_snapshots_and_charts(self):
         app = self.app

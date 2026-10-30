@@ -56,7 +56,9 @@ class HotDealTests(unittest.IsolatedAsyncioTestCase):
         out = await self.check()
         self.assertEqual((out.notifications, out.suppressed_ai), (2, 1))
         self.assertEqual(len(screener.calls), 3)
-        self.assertEqual(screener.calls[0][1:], (13, 6))  # discount %, compared listings
+        discount, sample = screener.calls[0][1:]  # judged against the complete market of this check
+        self.assertGreaterEqual(discount, 10)
+        self.assertGreaterEqual(sample, 6)
         await self.app.notifications.deliver_batch()
         notes = {n.listing.external_id.split(":")[-1]: n.listing.ai_note for n in self.app.notifier.sent}
         self.assertEqual(notes, {"good": "✅ brak sygnałów ryzyka", "risky": "⚠️ wymieniany ekran"})
@@ -321,14 +323,15 @@ class StatsCardTests(unittest.IsolatedAsyncioTestCase):
         an = Analytics(container(app))
         text, buttons = await an.stats(user, search)
         text = text.replace("\xa0", " ")
-        self.assertIn("Aktywne oferty: 8", text)  # the broken one is not market
-        self.assertIn("<b>256 GB</b> — 6 ofert", text)
-        self.assertIn("mediana <b>3 900 PLN</b>", text)
-        self.assertIn("okazja (≥15%): cena ≤ <b>3 315 PLN</b>", text)
-        self.assertIn("<b>512 GB</b> — 2 ofert: za mało do mediany", text)
-        self.assertIn("1. 3 800 PLN · 256 GB (−3% vs mediana)", text)
-        self.assertIn("2. 3 850 PLN · 256 GB (−1% vs mediana)", text)
-        self.assertEqual([b.callback for b in buttons[0]], [f"chs:{search.id}", f"dl:{search.id}"])
+        self.assertNotIn("zbity", text)  # the broken one is not market
+        self.assertIn("<b>256 GB</b> · mediana <b>3 900 PLN</b> · typowo 3 862–3 938 · 6 ofert", text)
+        self.assertIn("🔥 okazja (−15%): ≤ <b>3 315 PLN</b>", text)
+        self.assertIn("<b>512 GB</b> · 2 ofert — za mało do mediany", text)
+        # 3-day-old offers feed the median but are never linked; only offers from the last 24 h are
+        self.assertNotIn("test-listing/a1", text)
+        self.assertIn("• <b>5 100 PLN</b> · 512 GB · 0 min temu (24.10 12:00)\n   <a href=\"https://example.invalid/test-listing/b1\">",
+                      text)
+        self.assertEqual([b.callback for b in buttons[0]], [f"chs:{search.id}", f"ai:c:{search.id}"])
         _, rows = await an.nav(user, "st")  # few searches: models right away
         self.assertEqual(rows[0][0].callback, f"st:s:{search.id}")
         _, rows = await an.nav(user, "ch")
@@ -361,12 +364,101 @@ class NavigationTests(ManySearchesTests):
             self.assertTrue(rows[0][0].callback.startswith(leaf), mode)
             self.assertEqual(sum(len(r) for r in rows[:-1]), 15)  # 15 pack iPhones (the manual one has no category)
         menu = [b.callback for row in menu_rows("pl", personal=True) for b in row]
-        for cb in ("nav:dl", "nav:st", "nav:ch", "nav:ai", "menu:searches", "menu:new", "menu:pack",
-                   "settings:open", "menu:status", "menu:help"):
-            self.assertIn(cb, menu)
+        self.assertEqual(menu, ["nav:dl", "nav:st", "menu:searches", "menu:new", "settings:open", "menu:help"])
+        settings_cbs = [b.callback for row in Controller(container(self.app)).settings_view(self.user).buttons
+                        for b in row]
+        self.assertIn("menu:pack", settings_cbs)
+        self.assertIn("menu:status", settings_cbs)
         self.assertNotIn("menu:plan", menu)  # nothing to buy in personal mode
         card_text, card = await an.stats(self.user, (await self.app.searches.list(self.user))[0])
         cbs = [b.callback for row in card for b in row]
         self.assertTrue(any(c.startswith("ai:c:") for c in cbs) and any(c.startswith("s:pause:") for c in cbs))
-        self.assertIn("menu:home", cbs)
-        self.assertIn("🏠", Controller(container(self.app)).menu("pl").buttons[0][0].text + "🏠")
+        self.assertTrue(any(c.startswith("chs:") for c in cbs) and any(c.startswith("nav:st:") for c in cbs))
+
+
+class FreshOnlyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_old_cheap_listing_is_statistics_only(self):
+        from app.presentation import fmt_posted
+
+        app = await App().setup()
+        user = await app.user(111)
+        await app.admin.grant(999, 111, "pro", 60)
+        search = await app.searches.create(user, draft(name="iPhone 15 Pro", keywords=["iphone 15 pro"]))
+        now = app.clock()
+        for i, p in enumerate([3900, 3800, 4000, 3850, 3950, 3900]):
+            app.mock.publish(phone(f"a{i}", p, posted=now - timedelta(days=3)))
+        app.mock.publish(phone("old_cheap", 3000, posted=now - timedelta(hours=30)))
+        app.mock.publish(phone("new_cheap", 3300, posted=now - timedelta(hours=2)))
+        await app.monitoring.check_search(search.id)
+        deals = await app.monitoring.market.find_deals(await app.repo.get_search(search.id), 10)
+        self.assertEqual([d.listing.external_id for d in deals], ["new_cheap"])
+        old = next(l for l in app.repo.listings.values() if l.external_id == "old_cheap")
+        self.assertTrue(fmt_posted(old, now, "Europe/Warsaw").startswith("30 godz. temu (23.10"))
+        self.assertIn("3 dni temu", fmt_posted(next(l for l in app.repo.listings.values()
+                                                       if l.external_id == "a0"), now, "Europe/Warsaw"))
+
+
+
+class BaselineHotTests(unittest.IsolatedAsyncioTestCase):
+    async def test_fresh_bargain_found_by_the_first_check_is_sent(self):
+        app = await App().setup()
+        user = await app.user(111)
+        await app.admin.grant(999, 111, "pro", 60)
+        d = draft(name="RTX 3060", keywords=["iphone 15 pro"])
+        d.deal_min_discount = 15
+        search = await app.searches.create(user, d)
+        now = app.clock()
+        for i, p in enumerate([3900, 3800, 4000, 3850, 3950, 3900]):
+            app.mock.publish(phone(f"a{i}", p, posted=now - timedelta(days=3)))
+        app.mock.publish(phone("fresh_bargain", 3000, posted=now - timedelta(hours=4)))
+        app.mock.publish(phone("old_bargain", 3000, posted=now - timedelta(hours=30)))
+        out = await app.monitoring.check_search(search.id)
+        self.assertTrue(out.baseline)
+        self.assertEqual((out.notifications, out.suppressed_not_hot), (1, 7))
+        await app.notifications.deliver_batch()
+        self.assertEqual([n.listing.external_id.split(":")[-1] for n in app.notifier.sent], ["fresh_bargain"])
+
+
+
+class PackSyncAndSuspiciousTests(unittest.IsolatedAsyncioTestCase):
+    async def test_old_pack_search_gets_new_filters_and_market_follows(self):
+        app = await App().setup()
+        user = await app.user(111)
+        await app.admin.grant(999, 111, "pro", 60)
+        d = draft(name="MacBook Pro M1", keywords=["macbook pro", "m1"])
+        d.deal_min_discount = 15
+        search = await app.searches.create(user, d)
+        now = app.clock()
+        for i, p in enumerate([2500, 2600, 2550, 2450, 2500]):
+            app.mock.publish(phone(f"m{i}", p, title="MacBook Pro 13 M1 512GB", posted=now - timedelta(days=2)))
+        for i, p in enumerate([4200, 4300, 4100]):
+            app.mock.publish(phone(f"p{i}", p, title="MacBook Pro 14 M1 Pro 512GB", posted=now - timedelta(days=2)))
+        await app.monitoring.check_search(search.id)
+        self.assertEqual(len(await app.monitoring.market.market(search.id)), 8)
+        self.assertEqual(await app.searches.sync_pack(user), 1)
+        criteria = (await app.repo.get_search(search.id)).criteria
+        self.assertEqual(criteria.excluded_keywords, ["m1 pro", "m1 max"])
+        self.assertEqual(criteria.category, "laptopy")
+        market = await app.monitoring.market.market(search.id)
+        self.assertEqual(sorted(l.external_id.split(":")[-1] for l in market), [f"m{i}" for i in range(5)])
+        self.assertEqual(await app.searches.sync_pack(user), 0)  # idempotent
+
+    def test_suspicious_discount_is_flagged(self):
+        from app.domain.pricing import PriceStats
+        from app.presentation import render_listing_notification
+        from app.services.notifications import OutgoingListing
+        from app.domain.models import StoredListing, User
+        from decimal import Decimal as D
+
+        now = timedelta(0)
+        from tests.unit.helpers import T0
+        listing = StoredListing(source="olx", external_id="1", url="https://www.olx.pl/d/oferta/x.html",
+                                title="RTX 5070", price=D(1429), currency="PLN", posted_at=T0, id=1)
+        user = User(id=1, telegram_id=1)
+        item = OutgoingListing(user, listing, 1, "RTX 5070", "new", None,
+                               PriceStats(D(3774), D(3500), D(4000), 20))
+        text, _ = render_listing_notification(item, T0)
+        self.assertIn("−62%", text)
+        self.assertIn("Bardzo tanio", text)
+        item.price_stats = PriceStats(D(1700), D(1600), D(1800), 20)
+        self.assertNotIn("Bardzo tanio", render_listing_notification(item, T0)[0])

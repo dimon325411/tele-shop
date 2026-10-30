@@ -34,6 +34,22 @@ def fmt_price(value: Decimal | None) -> str:
     return whole_spaced if frac == "00" else f"{whole_spaced},{frac}"
 
 
+def fmt_posted(listing, now: datetime, tz: str, lang: str | None = None) -> str:
+    """When the listing was put up: '24.10 14:48 (2 godz. temu)'. Falls back to when we first saw it."""
+    value = listing.posted_at or listing.first_seen_at
+    if value is None:
+        return t("posted.unknown", lang)
+    local = value.astimezone(ZoneInfo(tz)).strftime("%d.%m %H:%M")
+    minutes = max(0, int((now - value).total_seconds() // 60))
+    if minutes < 60:
+        age = t("age.minutes", lang, n=minutes)
+    elif minutes < 48 * 60:
+        age = t("age.hours", lang, n=minutes // 60)
+    else:
+        age = t("age.days", lang, n=minutes // 1440)
+    return t("posted.value", lang, time=local, age=age, seen="" if listing.posted_at else t("posted.seen", lang))
+
+
 def fmt_dt(value: datetime | None, tz: str, lang: str | None = None) -> str:
     if value is None:
         return t("never", lang)
@@ -45,36 +61,36 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     lang = user.language
     lines = [t("notify.price_drop" if item.kind == "price_drop" else "notify.new", lang, title=esc(listing.title))]
     currency = esc(listing.currency or "PLN")
-    if item.kind == "price_drop" and item.old_price is not None and listing.price is not None:
-        lines.append(t("notify.price_drop_line", lang, old=fmt_price(item.old_price), price=fmt_price(listing.price),
-                       currency=currency))
-    elif listing.price is not None:
-        lines.append(t("notify.price", lang, price=fmt_price(listing.price), currency=currency))
-    else:
-        lines.append(t("notify.price_unknown", lang))
     stats = getattr(item, "price_stats", None)
+    compare = ""
+    diff = None
     if stats is not None and listing.price is not None:
         diff = stats.diff_percent(listing.price)
-        scope = t("price.scope_condition" if stats.same_condition else "price.scope_all", lang)
-        if getattr(stats, "variant", None):
-            scope += t("price.scope_variant", lang, variant=fmt_variant(stats.variant))
-        lines.append(t("notify.price_compare", lang, count=stats.count, median=fmt_price(stats.median),
-                       currency=currency, verdict=t(verdict_key(diff), lang, pct=abs(diff)), scope=scope))
-        if diff <= -5:
-            lines.append(t("notify.profit", lang, profit=fmt_price(stats.median - listing.price), currency=currency))
-        if diff <= -HOT_MARK_PERCENT and item.kind != "price_drop":
-            lines[0] = t("notify.hot", lang, title=esc(listing.title))
-    if listing.ai_note:
-        lines.append(t("notify.ai_note", lang, note=esc(listing.ai_note)))
-    lines.append(t("notify.source", lang, source=esc(DISPLAY_NAMES.get(listing.source, listing.source))))
+        scope = [fmt_variant(stats.variant)] if getattr(stats, "variant", None) else []
+        if stats.same_condition and listing.condition:
+            scope.append(t(f"condition.{listing.condition}", lang).lower())
+        compare = t("notify.vs_median", lang, diff=_signed_pct(diff), median=fmt_price(stats.median.quantize(Decimal("1"))),
+                    count=stats.count, scope=(", " + ", ".join(scope)) if scope else "")
+    if item.kind == "price_drop" and item.old_price is not None and listing.price is not None:
+        lines.append(t("notify.price_drop_line", lang, old=fmt_price(item.old_price), price=fmt_price(listing.price),
+                       currency=currency) + compare)
+    elif listing.price is not None:
+        lines.append(t("notify.price", lang, price=fmt_price(listing.price), currency=currency) + compare)
+    else:
+        lines.append(t("notify.price_unknown", lang))
+    if diff is not None and diff <= -5:
+        lines.append(t("notify.profit", lang, profit=fmt_price(stats.median - listing.price), currency=currency))
+    if diff is not None and diff <= -HOT_MARK_PERCENT and item.kind != "price_drop":
+        lines[0] = t("notify.hot", lang, title=esc(listing.title))
+    if diff is not None and diff <= -SUSPICIOUS_DISCOUNT:
+        lines.append(t("notify.suspicious", lang))
+    facts = [t("notify.posted_at", lang, time=fmt_posted(listing, now, user.timezone, lang))]
     location = ", ".join(x for x in (listing.city, listing.region) if x)
     if location:
-        lines.append(t("notify.location", lang, location=esc(location)))
+        facts.append(t("notify.location", lang, location=esc(location)))
     if listing.condition:
-        lines.append(t("notify.condition", lang, condition=t(f"condition.{listing.condition}", lang)))
-    if listing.posted_at is not None:
-        lines.append(t("notify.posted_at", lang, time=fmt_dt(listing.posted_at, user.timezone, lang)))
-    lines.append(t("notify.found_at", lang, time=fmt_dt(listing.first_seen_at or now, user.timezone, lang)))
+        facts.append(t(f"condition.{listing.condition}", lang))
+    lines.append(" · ".join(facts))
     if listing.seller_created_at is not None:
         since = listing.seller_created_at.astimezone(ZoneInfo(user.timezone))
         if is_new_account(listing.seller_created_at, now, user.timezone):
@@ -82,8 +98,15 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
         else:
             lines.append(t("notify.seller_since", lang, date=since.strftime("%m.%Y"),
                            business=t("notify.seller_business", lang) if listing.seller_is_business else ""))
+    if listing.ai_note:
+        lines.append(t("notify.ai_note", lang, note=esc(listing.ai_note)))
+    footer = []
     if item.search_name:
-        lines.append(t("notify.search", lang, name=esc(item.search_name)))
+        footer.append(t("notify.search", lang, name=esc(item.search_name)))
+    if listing.source != "olx":
+        footer.append(t("notify.source", lang, source=esc(DISPLAY_NAMES.get(listing.source, listing.source))))
+    if footer:
+        lines.append(" · ".join(footer))
     if listing.is_test:
         lines.append(t("notify.test_marker", lang))
     buttons = [[Button(t("btn.open_listing", lang), url=listing.url)]]
@@ -98,6 +121,10 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     row.append(Button(t("btn.notify_settings", lang), callback="settings:open"))
     buttons.append(row)
     return "\n".join(lines), buttons
+
+
+def _signed_pct(diff: int) -> str:
+    return f"−{-diff}%" if diff < 0 else f"+{diff}%"
 
 
 def fmt_variant(variant: str | None) -> str:
@@ -134,7 +161,8 @@ def split_message(text: str, limit: int = TELEGRAM_TEXT_LIMIT - 96) -> list[str]
     return [p for p in parts if p.strip()]
 
 
-HOT_MARK_PERCENT = 10  # "🔥 Okazja" header when the price is at least this much below the median
+HOT_MARK_PERCENT = 10
+SUSPICIOUS_DISCOUNT = 40  # this far below the median: often a scam, a broken item or a wrong model  # "🔥 Okazja" header when the price is at least this much below the median
 CAPTION_LIMIT = 1024  # Telegram limit for photo captions
 
 

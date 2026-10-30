@@ -116,6 +116,12 @@ async def main() -> None:
     for plan in await container.repo.list_plans(active_only=False):  # demo: mock checks every minute
         if plan.code != "personal":  # real OLX stays at the personal-mode minimum (10 min)
             await container.repo.update_plan(plan.code, min_interval_seconds=60)
+    for telegram_id in settings.admin_ids:  # pack searches follow the current pack definition
+        owner = await container.repo.get_user_by_telegram_id(telegram_id)
+        if owner is not None:
+            updated = await container.searches.sync_pack(owner)
+            if updated:
+                log.warning("updated filters of %s pack searches", updated)
     bot = make_bot(settings)
     container.attach_notifier(TelegramNotifier(bot))
     dp = Dispatcher(storage=MemoryStorage())

@@ -13,8 +13,8 @@ from datetime import datetime, timedelta
 from app.domain.models import User
 from app.domain.timing import Clock, local_day_start_utc, utcnow
 from app.i18n import esc, t
-from app.presentation import fmt_price
-from app.services.market import MarketService, stats_for, usable
+from app.presentation import fmt_posted, fmt_price
+from app.services.market import MarketService, is_fresh, stats_for, usable
 from app.storage.repo import Repository
 
 NEAR_MISS_LIMIT = 5
@@ -32,6 +32,7 @@ class NearMiss:
     currency: str
     discount: int  # % below the median (negative = above)
     url: str
+    posted: str = ""
 
 
 class DigestService:
@@ -52,7 +53,7 @@ class DigestService:
         for search in searches:
             recent = await self.repo.list_recent_matches(search.id, day_start, RECENT_LIMIT)
             live_since = (search.created_at or day_start) + BASELINE_WINDOW  # first check only records the market
-            fresh = [l for l in recent if (l.posted_at is None or l.posted_at >= day_start - timedelta(hours=1))
+            fresh = [l for l in recent if is_fresh(l, now)
                      and l.first_seen_at is not None and l.first_seen_at > live_since]
             if not fresh:
                 quiet.append(search.name)
@@ -69,7 +70,7 @@ class DigestService:
                 discount = -stats.diff_percent(listing.price)
                 if best is None or discount > best.discount:
                     best = NearMiss(search.name, listing.title, listing.price, listing.currency or "PLN", discount,
-                                    listing.url)
+                                    listing.url, fmt_posted(listing, now, user.timezone, lang))
             if best is not None:
                 near.append(best)
             lines_per_search.append((len(fresh), t("digest.search_line", lang, name=esc(search.name), count=len(fresh),
@@ -92,7 +93,8 @@ class DigestService:
         if near:
             parts.append(t("digest.near_title", lang) + "\n" + "\n".join(
                 t("digest.near_item", lang, pct=n.discount, name=esc(n.search_name), title=esc(n.title[:60]),
-                  price=fmt_price(n.price), currency=esc(n.currency), url=esc(n.url)) for n in near))
+                  price=fmt_price(n.price), currency=esc(n.currency), url=esc(n.url), posted=n.posted)
+                for n in near))
         if quiet:
             names = ", ".join(quiet[:MAX_QUIET_NAMES]) + (f" (+{len(quiet) - MAX_QUIET_NAMES})"
                                                           if len(quiet) > MAX_QUIET_NAMES else "")

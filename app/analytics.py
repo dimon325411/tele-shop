@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 from app.container import Container
 from app.domain.models import Search, User
 from app.i18n import esc, t
-from app.presentation import Button, fmt_dt, fmt_price, fmt_variant
+from app.presentation import SUSPICIOUS_DISCOUNT, Button, fmt_dt, fmt_posted, fmt_price, fmt_variant
 from app.domain.pricing import price_stats
 from app.domain.timing import local_day_start_utc
 from app.domain.variants import variant_of
-from app.services.market import ALL_VARIANTS, usable
+from app.services.market import ALL_VARIANTS, is_fresh, usable
 
 DEFAULT_SPREAD = 10
 STATS_CHEAPEST = 3
@@ -44,7 +45,8 @@ class Analytics:
             deals += [(s, d) for d in await self.market.find_deals(s, pct, limit=10)]
         deals.sort(key=lambda sd: -sd[1].discount)
         deals = deals[:5 if len(searches) == 1 else 10]
-        pct = spread or (searches[0].criteria.deal_min_discount if len(searches) == 1 else None) or DEFAULT_SPREAD
+        thresholds = {s.criteria.deal_min_discount or DEFAULT_SPREAD for s in searches}
+        pct = spread or (thresholds.pop() if len(thresholds) == 1 else min(thresholds, default=DEFAULT_SPREAD))
         names = ", ".join(s.name for s in searches) if len(searches) <= 3 else t("deals.all_name", lang,
                                                                                   count=len(searches))
         if not deals:
@@ -53,17 +55,16 @@ class Analytics:
                 count += len(await self.market.current_prices(s.id))
             return t("deals.none", lang, pct=pct, name=esc(names), count=count), []
         lines = [t("deals.header", lang, pct=pct, name=esc(names))]
-        buttons = []
         for i, (s, d) in enumerate(deals, 1):
             l = d.listing
-            variant = f" · {fmt_variant(d.variant)}" if d.variant else ""
+            variant = f", {fmt_variant(d.variant)}" if d.variant else ""
             title = l.title if len(searches) == 1 else f"{s.name}: {l.title}"
-            lines.append(t("deals.item", lang, n=i, title=esc(title), price=fmt_price(l.price),
-                           currency=esc(l.currency or "PLN"), pct=d.discount, median=fmt_price(d.stats.median),
+            lines.append(t("deals.item", lang, n=i, title=esc(title[:70]), price=fmt_price(l.price), url=esc(l.url),
+                           currency=esc(l.currency or "PLN"), pct=d.discount, median=fmt_price(d.stats.median.quantize(Decimal("1"))),
                            count=d.stats.count, variant=variant, profit=fmt_price(d.potential_profit),
-                           posted=fmt_dt(l.posted_at or l.first_seen_at, user.timezone, lang)))
-            buttons.append([Button(f"{i}. {l.title[:40]}", url=l.url)])
-        lines.append(t("deals.footer", lang))
+                           posted=fmt_posted(l, self.market.clock(), user.timezone, lang))
+                         + (t("deals.suspicious", lang) if d.discount >= SUSPICIOUS_DISCOUNT else ""))
+        buttons: list = []
         return "\n\n".join(lines), buttons
 
     async def chart_options(self, user: User, search: Search) -> list[list[Button]]:
@@ -141,21 +142,17 @@ class Analytics:
         if search.criteria.condition and getattr(search.criteria.condition, "value", search.criteria.condition) != "any":
             wanted = getattr(search.criteria.condition, "value", search.criteria.condition)
             market = [m for m in market if m.condition in (wanted, None)]
-        day_start = local_day_start_utc(now, user.timezone)
-        today = sum(1 for m in market if m.first_seen_at and m.first_seen_at >= day_start
-                    and (m.posted_at is None or m.posted_at >= day_start))
-        lines = [t("stats.title", lang, name=esc(search.name))]
         pause = (Button(t("btn.pause", lang), callback=f"s:pause:{search.id}") if search.is_active
                  else Button(t("btn.resume", lang), callback=f"s:resume:{search.id}"))
         buttons = [[Button(t("btn.stats_chart", lang), callback=f"chs:{search.id}"),
-                    Button(t("btn.stats_deals", lang), callback=f"dl:{search.id}")],
-                   [Button(t("btn.card_ai", lang), callback=f"ai:c:{search.id}"), pause],
-                   [Button(t("btn.back", lang), callback=f"nav:st:{search.criteria.category or 'other'}"),
-                    Button(t("btn.menu", lang), callback="menu:home")]]
+                    Button(t("btn.card_ai", lang), callback=f"ai:c:{search.id}")],
+                   [pause, Button(t("btn.back", lang), callback=f"nav:st:{search.criteria.category or 'other'}")]]
+        condition = getattr(search.criteria.condition, "value", search.criteria.condition)
+        scope = t("stats.scope", lang, condition=t(f"condition.{condition}", lang).lower()) if condition != "any" else ""
+        lines = [t("stats.title", lang, name=esc(search.name), scope=scope, count=len(market))]
         if not market:
             lines.append(t("stats.empty", lang))
             return "\n\n".join(lines), buttons
-        lines.append(t("stats.summary", lang, count=len(market), today=today))
         cur = esc(market[0].currency or "PLN")
         pct = search.criteria.deal_min_discount or DEFAULT_SPREAD
         groups: dict[str, list] = {}
@@ -164,12 +161,14 @@ class Analytics:
         variants = sorted((v for v in groups if v != ALL_VARIANTS), key=lambda v: -len(groups[v]))[:STATS_MAX_VARIANTS]
         keys = variants if variants else [ALL_VARIANTS]
         shown: dict[str, object] = {}  # variant -> stats shown in the card (cheapest offers compare to these)
+        block: list[str] = []
+        one = Decimal("1")
         for key in keys:
             items = groups[key] if key != ALL_VARIANTS else market
-            label = fmt_variant(key) if key != ALL_VARIANTS else t("stats.all_variants", lang)
+            label = t("stats.variant_label", lang, variant=fmt_variant(key)) if key != ALL_VARIANTS else ""
             st = price_stats([m.price for m in items])
             if st is None:
-                lines.append(t("stats.few", lang, variant=label, count=len(items)))
+                block.append(t("stats.few", lang, variant=label, count=len(items)))
                 continue
             shown[key] = st
             trend = ""
@@ -179,25 +178,31 @@ class Analytics:
                 change = int(round((float(st.median) - float(old)) / float(old) * 100))
                 trend = t("stats.trend", lang, days=(now.date() - _day(history[0]["day"])).days,
                           pct=f"{change:+d}%".replace("-", "−"))
-            deal_price = (st.median * (100 - pct) / 100).quantize(st.median.__class__("1"))
-            lines.append(t("stats.variant", lang, variant=label, count=st.count, median=fmt_price(st.median.quantize(st.median.__class__("1"))), cur=cur,
-                           p25=fmt_price(st.p25.quantize(st.p25.__class__("1"))),
-                           p75=fmt_price(st.p75.quantize(st.p75.__class__("1"))),
-                           low=fmt_price(min(m.price for m in items)), trend=trend, pct=pct,
-                           deal=fmt_price(deal_price)))
-        cheapest = sorted(market, key=lambda m: m.price)[:STATS_CHEAPEST]
-        if cheapest:
+            block.append(t("stats.variant", lang, variant=label, count=st.count, cur=cur, pct=pct, trend=trend,
+                           median=fmt_price(st.median.quantize(one)), p25=fmt_price(st.p25.quantize(one)),
+                           p75=fmt_price(st.p75.quantize(one)),
+                           deal=fmt_price((st.median * (100 - pct) / 100).quantize(one))))
+        lines.append("\n".join(block))
+        cheapest = sorted((m for m in market if is_fresh(m, now)), key=lambda m: m.price)[:STATS_CHEAPEST]
+        if not cheapest:
+            lines.append(t("stats.no_fresh", lang))
+        else:
             items = []
-            for n, m in enumerate(cheapest, 1):
+            for m in cheapest:
                 st = shown.get(variant_of(m.title) or ALL_VARIANTS) if variants else shown.get(ALL_VARIANTS)
-                diff = (t("stats.vs_median", lang, pct=f"{st.diff_percent(m.price):+d}%".replace("-", "−")) if st
-                        else t("stats.no_variant", lang) if variants and not variant_of(m.title) else "")
-                variant = f" · {fmt_variant(variant_of(m.title))}" if variant_of(m.title) else ""
-                items.append(t("stats.cheap_item", lang, n=n, price=fmt_price(m.price), cur=cur, diff=diff,
-                               variant=variant, url=esc(m.url), title=esc(m.title[:55])))
+                diff = f" ({_pct(st.diff_percent(m.price))})" if st else ""
+                if st and st.diff_percent(m.price) <= -SUSPICIOUS_DISCOUNT:
+                    diff += " ⚠️"
+                variant = f" · {fmt_variant(variant_of(m.title))}" if variants and variant_of(m.title) else ""
+                items.append(t("stats.cheap_item", lang, price=fmt_price(m.price), cur=cur, diff=diff,
+                               variant=variant, url=esc(m.url), title=esc(m.title[:50]),
+                               posted=fmt_posted(m, now, user.timezone, lang)))
             lines.append(t("stats.cheapest", lang) + "\n" + "\n".join(items))
-        lines.append(t("stats.footer", lang))
         return "\n\n".join(lines), buttons
+
+
+def _pct(diff: int) -> str:
+    return f"−{-diff}%" if diff < 0 else f"+{diff}%"
 
 
 def _cat_label(code: str, lang: str | None) -> str:

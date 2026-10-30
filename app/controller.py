@@ -38,12 +38,11 @@ class Reply:
 
 def menu_rows(lang: str | None, personal: bool = False) -> list[list[Button]]:
     """Main menu: every feature is one tap away (commands stay as shortcuts)."""
+    # Six buttons only. Charts and AI live on the model card (📊), the pack and the bot status in ⚙️ settings.
     rows = [
         [Button(t("btn.m_deals", lang), callback="nav:dl"), Button(t("btn.m_stats", lang), callback="nav:st")],
-        [Button(t("btn.m_charts", lang), callback="nav:ch"), Button(t("btn.m_ai", lang), callback="nav:ai")],
         [Button(t("btn.searches", lang), callback="menu:searches"), Button(t("btn.new_search", lang), callback="menu:new")],
-        [Button(t("btn.m_pack", lang), callback="menu:pack"), Button(t("btn.settings", lang), callback="settings:open")],
-        [Button(t("btn.status", lang), callback="menu:status"), Button(t("btn.help", lang), callback="menu:help")],
+        [Button(t("btn.settings", lang), callback="settings:open"), Button(t("btn.help", lang), callback="menu:help")],
     ]
     if not personal:
         rows.append([Button(t("btn.plan", lang), callback="menu:plan")])
@@ -256,6 +255,7 @@ class Controller:
                     callback="settings:pricedrop")],
             [Button(t("btn.new_sellers_hide" if user.hide_new_sellers else "btn.new_sellers_warn", lang),
                     callback="settings:newsellers")],
+            [Button(t("btn.m_pack", lang), callback="menu:pack"), Button(t("btn.status", lang), callback="menu:status")],
             [Button(t("btn.delete_account", lang), callback="settings:delete")],
         ]
         return Reply(t("settings.title", lang, quiet=quiet, tz=esc(user.timezone)), rows)

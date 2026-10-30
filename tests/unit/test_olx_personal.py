@@ -163,7 +163,7 @@ class PersonalUxTests(unittest.IsolatedAsyncioTestCase):
         app = await App(settings=settings).setup()
         await app.users.register(999, "owner", "Owner")  # first message was "Hello", not /start
         reply = await Controller(container(app)).start(999, "owner", "Owner")
-        self.assertIn("prywatny bot", reply.text)
+        self.assertIn("Gorące okazje", reply.text)
 
 
 class PromotedTests(unittest.TestCase):
