@@ -41,6 +41,7 @@ def organic(data: dict) -> list[dict]:
 
 def main() -> int:
     result: dict[str, list[int]] = {}
+    shares: dict[str, dict[int, float]] = {}
     for code, queries in PRESETS.items():
         counts: Counter = Counter()
         for q in queries:
@@ -55,9 +56,15 @@ def main() -> int:
                     counts[cid] += 1
             time.sleep(3)
         total = sum(counts.values()) or 1
-        dominant = [cid for cid, n in counts.most_common() if n / total >= 0.2][:3]
-        result[code] = dominant
-        print(f"{code:16} -> {dominant}   (all: {counts.most_common(5)})")
+        shares[code] = {cid: n / total for cid, n in counts.items()}
+        print(f"{code:16} -> {[c for c, n in counts.most_common() if n / total >= 0.2][:3]}   "
+              f"(all: {counts.most_common(5)})")
+    # a category belongs to the preset where it has the biggest share
+    # (e.g. "rtx 3070" also finds whole PCs, but that section belongs to "komputery")
+    for code, cats in shares.items():
+        result[code] = [cid for cid, share in sorted(cats.items(), key=lambda kv: -kv[1])
+                        if share >= 0.2 and all(share >= other.get(cid, 0) for other in shares.values())][:3]
+    print("final:", result)
     # verify the filter works for one preset
     some = next((ids[0] for ids in result.values() if ids), None)
     if some is not None:
