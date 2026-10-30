@@ -29,7 +29,7 @@ TEST_SERVER = TelegramAPIServer(
 COMMANDS = [
     ("start", "Menu główne"), ("newsearch", "Nowe wyszukiwanie"), ("searches", "Moje wyszukiwania"),
     ("status", "Status usługi"), ("plan", "Subskrypcja i limity"), ("pause", "Wstrzymaj monitoring"),
-    ("resume", "Wznów monitoring"), ("delete", "Usuń wyszukiwanie"), ("deals", "Okazje poniżej mediany"), ("pack", "Pakiet wyszukiwań dla odsprzedaży"), ("chart", "Wykres cen"), ("compare", "Porównaj oferty (AI)"), ("settings", "Ustawienia"),
+    ("resume", "Wznów monitoring"), ("delete", "Usuń wyszukiwanie"), ("stats", "Statystyki rynku (mediana, ceny)"), ("deals", "Okazje poniżej mediany"), ("pack", "Pakiet wyszukiwań dla odsprzedaży"), ("chart", "Wykres cen"), ("compare", "Porównaj oferty (AI)"), ("settings", "Ustawienia"),
     ("help", "Pomoc"), ("terms", "Regulamin"), ("privacy", "Prywatność"), ("support", "Pomoc techniczna"),
     ("paysupport", "Pomoc w sprawie płatności"),
 ]

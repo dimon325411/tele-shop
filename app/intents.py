@@ -13,6 +13,8 @@ import re
 from app.domain.models import Search
 from app.domain.text import tokens
 
+STATS_WORDS = {"statystyki", "statystyka", "mediana", "srednia", "stats", "статистика", "статистику", "медиана",
+               "медиану", "средняя", "среднюю", "цены", "цена", "почем", "почём", "рынок", "ceny", "cena"}
 CHART_WORDS = {"wykres", "historia", "chart", "график", "графика", "динамика", "история", "изменения"}
 DEALS_WORDS = {"okazja", "okazje", "okazji", "zarobic", "zarobimy", "zysk", "deal", "deals", "tanio", "spread",
                "заработ", "заработаем", "заработать", "выгод", "выгодно", "выгодный", "профит", "спред", "дешевле"}
@@ -37,7 +39,8 @@ def _has(words: list[str], vocab: set[str]) -> bool:
 def detect(text: str, searches: list[Search]) -> tuple[str | None, list[Search], int | None]:
     """Return (intent, candidate searches with the highest word overlap, spread %)."""
     words = _words(_PCT.sub(" ", text))  # "15%" is a spread, not a model number
-    intent = "deals" if _has(words, DEALS_WORDS) else "chart" if _has(words, CHART_WORDS) else None
+    intent = ("deals" if _has(words, DEALS_WORDS) else "chart" if _has(words, CHART_WORDS)
+              else "stats" if _has(words, STATS_WORDS) else None)
     if intent is None:
         return None, [], None
     pct_match = _PCT.search(text)

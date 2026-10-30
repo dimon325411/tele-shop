@@ -42,6 +42,29 @@ async def persist_loop(repo: MemoryRepository, every_seconds: int = 60) -> None:
 PARALLEL_CHECKS = 1
 
 
+def save_on_signals(repo: MemoryRepository) -> None:
+    """Closing the Terminal window (SIGHUP) or ``kill`` (SIGTERM) would end the process without the final save."""
+    import os
+    import signal
+
+    def save_and_exit(signame: str) -> None:
+        try:
+            repo.dump(STATE_FILE)
+            log.warning("%s: demo state saved to %s", signame, STATE_FILE)
+        finally:
+            os._exit(0)
+
+    loop = asyncio.get_running_loop()
+    for name in ("SIGHUP", "SIGTERM"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            loop.add_signal_handler(sig, save_and_exit, name)
+        except (NotImplementedError, RuntimeError):  # Windows: the minute-by-minute save covers it
+            pass
+
+
 async def scheduler_loop(container, tick_seconds: int) -> None:
     running: set[asyncio.Task] = set()
     gate = asyncio.Semaphore(PARALLEL_CHECKS)
@@ -103,6 +126,7 @@ async def main() -> None:
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command=c, description=d) for c, d in COMMANDS])
     warm = asyncio.create_task(warm_up_charts())  # noqa: F841 — font cache in background
+    save_on_signals(repo)
     scheduler = asyncio.create_task(scheduler_loop(container, tick_seconds=15))
     saver = asyncio.create_task(persist_loop(repo))
     try:

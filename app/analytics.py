@@ -10,9 +10,15 @@ from app.container import Container
 from app.domain.models import Search, User
 from app.i18n import esc, t
 from app.presentation import Button, fmt_dt, fmt_price, fmt_variant
-from app.services.market import ALL_VARIANTS
+from app.domain.pricing import price_stats
+from app.domain.timing import local_day_start_utc
+from app.domain.variants import variant_of
+from app.services.market import ALL_VARIANTS, usable
 
 DEFAULT_SPREAD = 10
+STATS_CHEAPEST = 3
+STATS_MAX_VARIANTS = 4
+CATEGORY_ORDER = ["iphone", "konsole", "karty_graficzne", "laptopy", "komputery"]
 MIN_HISTORY_DAYS = 2
 
 
@@ -89,3 +95,96 @@ class Analytics:
                                       t("chart.now_sub", lang, count=len(prices)))
         caption = t("chart.now_caption", lang, name=label, since=fmt_dt(since, user.timezone, lang))
         return ChartResult(png, caption)
+
+
+    # ------------------------------------------------------------------ /stats
+    async def stats_categories(self, user: User) -> tuple[str, list[list[Button]]]:
+        lang = user.language
+        searches = await self.c.searches.list(user)
+        counts: dict[str, int] = {}
+        for s in searches:
+            counts[s.criteria.category or "other"] = counts.get(s.criteria.category or "other", 0) + 1
+        order = [c for c in CATEGORY_ORDER if c in counts] + sorted(c for c in counts if c not in CATEGORY_ORDER)
+        rows = [[Button(f"{_cat_label(c, lang)} ({counts[c]})", callback=f"st:c:{c}")] for c in order]
+        return t("stats.choose_cat", lang), rows
+
+    async def stats_category(self, user: User, category: str) -> tuple[str, list[list[Button]]]:
+        lang = user.language
+        searches = [s for s in await self.c.searches.list(user) if (s.criteria.category or "other") == category]
+        rows: list[list[Button]] = []
+        for i in range(0, len(searches), 2):  # two per row: 16 iPhones fit on one screen
+            rows.append([Button(s.name, callback=f"st:s:{s.id}") for s in searches[i:i + 2]])
+        rows.append([Button(t("btn.back", lang), callback="st:home")])
+        return t("stats.choose_search", lang, category=_cat_label(category, lang)), rows
+
+    async def stats(self, user: User, search: Search) -> tuple[str, list[list[Button]]]:
+        """Market card of one search: median, typical range, cheapest per storage variant, trend, cheapest offers."""
+        lang = user.language
+        now = self.market.clock()
+        market = [m for m in await self.market.market(search.id) if usable(m)]
+        if search.criteria.condition and getattr(search.criteria.condition, "value", search.criteria.condition) != "any":
+            wanted = getattr(search.criteria.condition, "value", search.criteria.condition)
+            market = [m for m in market if m.condition in (wanted, None)]
+        day_start = local_day_start_utc(now, user.timezone)
+        today = sum(1 for m in market if m.first_seen_at and m.first_seen_at >= day_start
+                    and (m.posted_at is None or m.posted_at >= day_start))
+        lines = [t("stats.title", lang, name=esc(search.name))]
+        buttons = [[Button(t("btn.stats_chart", lang), callback=f"chs:{search.id}"),
+                    Button(t("btn.stats_deals", lang), callback=f"dl:{search.id}")],
+                   [Button(t("btn.back", lang), callback=f"st:c:{search.criteria.category or 'other'}")]]
+        if not market:
+            lines.append(t("stats.empty", lang))
+            return "\n\n".join(lines), buttons
+        lines.append(t("stats.summary", lang, count=len(market), today=today))
+        cur = esc(market[0].currency or "PLN")
+        pct = search.criteria.deal_min_discount or DEFAULT_SPREAD
+        groups: dict[str, list] = {}
+        for m in market:
+            groups.setdefault(variant_of(m.title) or ALL_VARIANTS, []).append(m)
+        variants = sorted((v for v in groups if v != ALL_VARIANTS), key=lambda v: -len(groups[v]))[:STATS_MAX_VARIANTS]
+        keys = variants if variants else [ALL_VARIANTS]
+        shown: dict[str, object] = {}  # variant -> stats shown in the card (cheapest offers compare to these)
+        for key in keys:
+            items = groups[key] if key != ALL_VARIANTS else market
+            label = fmt_variant(key) if key != ALL_VARIANTS else t("stats.all_variants", lang)
+            st = price_stats([m.price for m in items])
+            if st is None:
+                lines.append(t("stats.few", lang, variant=label, count=len(items)))
+                continue
+            shown[key] = st
+            trend = ""
+            history = await self.market.history(search.id, key, days=8)
+            if len(history) >= 2 and history[0]["median"]:
+                old = history[0]["median"]
+                change = int(round((float(st.median) - float(old)) / float(old) * 100))
+                trend = t("stats.trend", lang, days=(now.date() - _day(history[0]["day"])).days,
+                          pct=f"{change:+d}%".replace("-", "−"))
+            deal_price = (st.median * (100 - pct) / 100).quantize(st.median.__class__("1"))
+            lines.append(t("stats.variant", lang, variant=label, count=st.count, median=fmt_price(st.median.quantize(st.median.__class__("1"))), cur=cur,
+                           p25=fmt_price(st.p25.quantize(st.p25.__class__("1"))),
+                           p75=fmt_price(st.p75.quantize(st.p75.__class__("1"))),
+                           low=fmt_price(min(m.price for m in items)), trend=trend, pct=pct,
+                           deal=fmt_price(deal_price)))
+        cheapest = sorted(market, key=lambda m: m.price)[:STATS_CHEAPEST]
+        if cheapest:
+            items = []
+            for n, m in enumerate(cheapest, 1):
+                st = shown.get(variant_of(m.title) or ALL_VARIANTS) if variants else shown.get(ALL_VARIANTS)
+                diff = (t("stats.vs_median", lang, pct=f"{st.diff_percent(m.price):+d}%".replace("-", "−")) if st
+                        else t("stats.no_variant", lang) if variants and not variant_of(m.title) else "")
+                variant = f" · {fmt_variant(variant_of(m.title))}" if variant_of(m.title) else ""
+                items.append(t("stats.cheap_item", lang, n=n, price=fmt_price(m.price), cur=cur, diff=diff,
+                               variant=variant, url=esc(m.url), title=esc(m.title[:55])))
+            lines.append(t("stats.cheapest", lang) + "\n" + "\n".join(items))
+        lines.append(t("stats.footer", lang))
+        return "\n\n".join(lines), buttons
+
+
+def _cat_label(code: str, lang: str | None) -> str:
+    return t(f"category.{code}", lang) if code != "other" else t("stats.other", lang)
+
+
+def _day(value):
+    from datetime import date
+
+    return value if isinstance(value, date) else date.fromisoformat(str(value))

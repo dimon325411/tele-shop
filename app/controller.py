@@ -108,9 +108,10 @@ class Controller:
                                  active=sum(1 for s in all_searches if s.is_active))
         rows: list[list[Button]] = []
         for s in searches:
-            toggle = (Button(f"⏸ {s.name}", callback=f"s:pause:{s.id}") if s.is_active
-                      else Button(f"▶️ {s.name}", callback=f"s:resume:{s.id}"))
-            rows.append([toggle, Button("🗑", callback=f"s:delete:{s.id}")])
+            toggle = (Button("⏸", callback=f"s:pause:{s.id}") if s.is_active
+                      else Button("▶️", callback=f"s:resume:{s.id}"))
+            rows.append([Button(f"📊 {s.name}", callback=f"st:s:{s.id}"), toggle,
+                         Button("🗑", callback=f"s:delete:{s.id}")])
         if pages > 1:
             nav = []
             if page > 0:

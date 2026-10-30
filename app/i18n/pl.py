@@ -67,6 +67,7 @@ MESSAGES: dict[str, str] = {
         "/delete — usuń wyszukiwanie\n/settings — powiadomienia i godziny ciszy\n"
         "/compare — porównaj oferty z pomocą AI (Pro+)\n"
         "/deals — okazje: świeże oferty poniżej mediany rynku\n/chart — wykres cen\n"
+        "/stats — statystyki rynku: mediana, typowe ceny, najtańsze oferty dla każdego modelu\n"
         "/pack — gotowy pakiet wyszukiwań (iPhone, konsole, karty graficzne, MacBooki) tylko z okazjami\n"
         "Możesz też pisać zwykłym tekstem: „wykres iphone 15 pro”, „okazje rtx 3070 15%”.\n"
         "/terms — regulamin\n/privacy — prywatność\n/support — pomoc\n/paysupport — płatności\n\n"
@@ -327,6 +328,24 @@ MESSAGES: dict[str, str] = {
     "digest.quiet": "Bez nowych ogłoszeń dziś: {names}",
     "digest.source_problem": "⚠️ Źródło {source} ma problem lub jest wstrzymane — szczegóły: /status",
     "digest.footer": "Monitoring działa. Powiadomienia przychodzą tylko o gorących okazjach.",
+    "stats.choose_cat": "📊 <b>Statystyki rynku</b> — wybierz kategorię:",
+    "stats.choose_search": "{category} — wybierz model:",
+    "stats.other": "Inne",
+    "stats.more": "Pasuje też:",
+    "stats.title": "📊 <b>{name}</b> — rynek OLX teraz",
+    "stats.summary": "Aktywne oferty: {count} (bez uszkodzonych, zablokowanych i akcesoriów) · nowe dziś: {today}",
+    "stats.all_variants": "Wszystkie",
+    "stats.variant": "<b>{variant}</b> — {count} ofert\n   mediana <b>{median} {cur}</b> · typowo {p25}–{p75} · najtaniej {low}{trend}\n   🔥 okazja (≥{pct}%): cena ≤ <b>{deal} {cur}</b>",
+    "stats.trend": "\n   📈 {days} dni temu → teraz: {pct}",
+    "stats.few": "<b>{variant}</b> — {count} ofert: za mało do mediany (potrzeba min. 5)",
+    "stats.cheapest": "💰 <b>Najtańsze teraz</b>:",
+    "stats.cheap_item": "{n}. {price} {cur}{variant}{diff} — <a href=\"{url}\">{title}</a>",
+    "stats.vs_median": " ({pct} vs mediana)",
+    "stats.no_variant": " (pamięć nie podana)",
+    "stats.empty": "Brak danych — wyszukiwanie nie zebrało jeszcze ofert. Zajrzyj po pierwszym sprawdzeniu (do 15 min).",
+    "stats.footer": "ℹ️ Ceny ofert z OLX (nie ceny sprzedaży). „Typowo” = środkowe 50% ofert. Historia zbierana codziennie od utworzenia wyszukiwania.",
+    "btn.stats_chart": "📈 Wykres",
+    "btn.stats_deals": "💸 Okazje",
     "deals.all_button": "🔥 Wszystkie wyszukiwania",
     "deals.all_name": "wszystkie wyszukiwania ({count})",
     "deals.choose": "Dla którego wyszukiwania pokazać okazje?",

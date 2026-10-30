@@ -454,6 +454,49 @@ async def cb_deals(cb: CallbackQuery, user, container: Container) -> None:
     await send_deals(cb.message, user, container, [search])
 
 
+@router.message(Command("stats"))
+async def cmd_stats(message: Message, user, container: Container) -> None:
+    from app.analytics import Analytics
+
+    if not await container.searches.list(user):
+        await message.answer(t("searches.empty", user.language))
+        return
+    text, rows = await Analytics(container).stats_categories(user)
+    await send(message, Reply(text, rows))
+
+
+async def send_stats(message: Message, user, container: Container, search, edit_cb: CallbackQuery | None = None):
+    from app.analytics import Analytics
+
+    text, rows = await Analytics(container).stats(user, search)
+    if edit_cb is not None:
+        await edit_or_send(edit_cb, Reply(text, rows))
+    else:
+        await send(message, Reply(text, rows))
+
+
+@router.callback_query(F.data.regexp(r"^st:(home|c:[a-z_]+|s:\d+)$"))
+async def cb_stats(cb: CallbackQuery, user, container: Container) -> None:
+    from app.analytics import Analytics
+
+    await cb.answer()
+    parts = cb.data.split(":")
+    an = Analytics(container)
+    if parts[1] == "home":
+        text, rows = await an.stats_categories(user)
+    elif parts[1] == "c":
+        text, rows = await an.stats_category(user, parts[2])
+    else:
+        try:
+            search = await container.searches.get_owned(user, int(parts[2]))
+        except AccessDenied as exc:
+            await cb.message.answer(t(f"deny.{exc.code}", user.language))
+            return
+        await send_stats(cb.message, user, container, search, edit_cb=cb)
+        return
+    await edit_or_send(cb, Reply(text, rows))
+
+
 @router.message(Command("pack"))
 async def cmd_pack(message: Message, user, container: Container) -> None:
     from app.domain.reseller_pack import DEAL_PERCENT, PACK
@@ -540,7 +583,13 @@ async def fallback_text(message: Message, ctl: Controller, user, container: Cont
     if not candidates:
         await message.answer(t("intent.no_search", user.language))
         return
-    if intent == "deals":
+    if intent == "stats":
+        for search in candidates[:3]:
+            await send_stats(message, user, container, search)
+        if len(candidates) > 3:
+            rows = [[Button(s.name, callback=f"st:s:{s.id}")] for s in candidates[3:]]
+            await send(message, Reply(t("stats.more", user.language), rows))
+    elif intent == "deals":
         await send_deals(message, user, container, candidates, pct)
     elif len(candidates) == 1:
         await send_chart_options(message, user, container, candidates[0])

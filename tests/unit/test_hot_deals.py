@@ -295,3 +295,44 @@ class ManySearchesTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(len(p) <= 4096 for p in parts))
         self.assertEqual("\n".join(parts), text)  # nothing lost, tags never cut
         self.assertEqual(split_message("krótko"), ["krótko"])
+
+
+class StatsCardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_card_and_navigation(self):
+        from app.analytics import Analytics
+        from app.intents import detect
+        from tests.unit.test_controller_jobs import container
+
+        app = await App().setup()
+        user = await app.user(111)
+        await app.admin.grant(999, 111, "pro", 60)
+        d = draft(name="iPhone 15 Pro", keywords=["iphone 15 pro"])
+        d.category = None
+        search = await app.searches.create(user, d)
+        await app.repo.update_search(search.id, deal_min_discount=15)
+        search = await app.repo.get_search(search.id)
+        now = app.clock()
+        for i, p in enumerate([3900, 3800, 4000, 3850, 3950, 3900]):
+            app.mock.publish(phone(f"a{i}", p, posted=now - timedelta(days=3)))
+        for i, p in enumerate([5200, 5100]):
+            app.mock.publish(phone(f"b{i}", p, title="iPhone 15 Pro 512GB", posted=now))
+        app.mock.publish(phone("broken", 900, title="iPhone 15 Pro 256GB zbity ekran", posted=now))
+        await app.monitoring.check_search(search.id)
+        an = Analytics(container(app))
+        text, buttons = await an.stats(user, search)
+        text = text.replace("\xa0", " ")
+        self.assertIn("Aktywne oferty: 8", text)  # the broken one is not market
+        self.assertIn("<b>256 GB</b> — 6 ofert", text)
+        self.assertIn("mediana <b>3 900 PLN</b>", text)
+        self.assertIn("okazja (≥15%): cena ≤ <b>3 315 PLN</b>", text)
+        self.assertIn("<b>512 GB</b> — 2 ofert: za mało do mediany", text)
+        self.assertIn("1. 3 800 PLN · 256 GB (−3% vs mediana)", text)
+        self.assertIn("2. 3 850 PLN · 256 GB (−1% vs mediana)", text)
+        self.assertEqual([b.callback for b in buttons[0]], [f"chs:{search.id}", f"dl:{search.id}"])
+        cats, rows = await an.stats_categories(user)
+        self.assertEqual(rows[0][0].callback, "st:c:other")
+        _, rows = await an.stats_category(user, "other")
+        self.assertEqual(rows[0][0].callback, f"st:s:{search.id}")
+        intent, found, _ = detect("статистика айфон 15 про", [search])
+        self.assertEqual((intent, found), ("stats", [search]))
+        self.assertEqual(detect("mediana iphone 15 pro", [search])[0], "stats")
