@@ -184,3 +184,55 @@ class PackTests(unittest.IsolatedAsyncioTestCase):
         created, _, error = await app.searches.create_pack(user)
         self.assertIsNotNone(error)
         self.assertIn(error.code, {"search_limit", "source_disabled", "source_not_in_plan"})
+
+
+class DigestTests(unittest.IsolatedAsyncioTestCase):
+    async def test_evening_digest_once_per_day_with_near_misses(self):
+        from app.config import PaymentsMode
+        from app.worker import jobs
+        from tests.unit.test_controller_jobs import container
+
+        settings = Settings(admin_ids=[999], payments_mode=PaymentsMode.TEST, enabled_sources=["mock"],
+                            personal_mode=True, digest_hour=21)
+        app = await App(settings=settings).setup()
+        user = await app.user(999)
+        search = await app.searches.create(user, draft(name="iPhone 15 Pro", keywords=["iphone 15 pro"]))
+        await app.repo.update_search(search.id, deal_min_discount=15)
+        now = app.clock()
+        for i, p in enumerate([3900, 3800, 4000, 3850, 3950, 3900]):
+            app.mock.publish(phone(f"a{i}", p, posted=now - timedelta(days=20)))
+        await jobs.run_check(container(app), search.id)  # baseline: silent for hot-deal searches
+        self.assertEqual(app.notifier.texts, [])
+        app.clock.advance(hours=1)
+        app.mock.publish(phone("near", 3500, posted=app.clock()))  # −10 %: below the 15 % threshold
+        app.mock.publish(phone("normal", 3900, posted=app.clock()))
+        await app.monitoring.check_search(search.id)
+        c = container(app)
+        c.monitoring.clock = app.clock
+        self.assertEqual(await jobs.daily_digest(c), 0)  # 13:00 in Warsaw: too early
+        app.clock.advance(hours=9)  # 22:00 in Warsaw
+        self.assertEqual(await jobs.daily_digest(c), 1)
+        self.assertEqual(await jobs.daily_digest(c), 0)  # once a day
+        text = app.notifier.texts[-1][1]
+        self.assertIn("nowych pasujących ogłoszeń dziś: 2", text)
+        self.assertIn("−10% · iPhone 15 Pro", text)
+        self.assertIn("https://example.invalid/test-listing/near", text)
+        self.assertNotIn("a0", text)  # the baseline market is not "new today"
+
+    async def test_digest_off_in_commercial_mode(self):
+        from app.worker import jobs
+        from tests.unit.test_controller_jobs import container
+
+        app = await App().setup()
+        self.assertEqual(await jobs.daily_digest(container(app)), 0)
+
+
+class PersonalPlanSyncTests(unittest.IsolatedAsyncioTestCase):
+    async def test_stored_personal_limit_follows_code(self):
+        app = await App().setup()
+        await app.repo.update_plan("personal", max_active_searches=20)  # state saved by an older version
+        await app.subs.seed_plans()
+        self.assertEqual((await app.repo.get_plan_by_code("personal")).max_active_searches, 50)
+        await app.repo.update_plan("pro", max_active_searches=7)  # admin changes to sold plans stay
+        await app.subs.seed_plans()
+        self.assertEqual((await app.repo.get_plan_by_code("pro")).max_active_searches, 7)

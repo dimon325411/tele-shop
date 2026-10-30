@@ -71,6 +71,10 @@ async def retention(ctx: dict) -> dict:
     return await jobs.retention(ctx["container"])
 
 
+async def daily_digest(ctx: dict) -> int:
+    return await jobs.daily_digest(ctx["container"])
+
+
 def _every(seconds: int) -> set[int]:
     return set(range(0, 60, max(1, min(seconds, 60))))
 
@@ -82,6 +86,7 @@ class WorkerSettings:
         cron(deliver_notifications, second=_every(10), timeout=120),
         cron(expire_subscriptions, minute=set(range(0, 60, 5)), second=7, timeout=300),
         cron(retention, hour=3, minute=17, second=0, timeout=1800),
+        cron(daily_digest, minute={2, 32}, second=11, timeout=300),
     ]
     on_startup = startup
     on_shutdown = shutdown

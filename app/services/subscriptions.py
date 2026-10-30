@@ -18,6 +18,11 @@ class SubscriptionService:
     async def seed_plans(self, plans: list[Plan] | None = None) -> None:
         for plan in plans or DEFAULT_PLANS:
             await self.repo.upsert_plan(plan)
+        # The hidden "personal" plan is never edited by admins: keep its limits in sync with the code
+        # (seeding alone never overwrites a stored plan).
+        personal = next((p for p in plans or DEFAULT_PLANS if p.code == "personal"), None)
+        if personal is not None:
+            await self.repo.update_plan("personal", max_active_searches=personal.max_active_searches)
 
     async def access_for(self, user: User) -> Access:
         now = self.clock()

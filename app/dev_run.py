@@ -62,6 +62,8 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
             await jobs.deliver_notifications(container)
             if ticks % 10 == 0:
                 await jobs.expire_subscriptions(container)
+            if ticks % 20 == 5:  # every ~5 minutes: evening summary when it is due
+                await jobs.daily_digest(container)
             if ticks % 5760 == 1:  # about once a day: drop old data so the state file stays small
                 await jobs.retention(container)
         except Exception:

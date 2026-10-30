@@ -30,7 +30,8 @@ async def run_check(c: Container, search_id: int) -> dict:
     if outcome.baseline and outcome.status in ("ok", "partial") and c.notifications is not None:
         search = await c.repo.get_search(search_id)
         user = await c.repo.get_user(search.user_id) if search else None
-        if user is not None and not user.bot_blocked:
+        # hot-deal searches stay silent (a pack creates dozens of them; the evening digest reports activity)
+        if user is not None and not user.bot_blocked and not search.criteria.deal_min_discount:
             try:
                 await c.notifications.notifier.send_text(
                     user.telegram_id, t("notify.baseline", user.language, name=esc(search.name), count=outcome.matched))
@@ -95,3 +96,42 @@ async def retention(c: Container) -> dict:
     result = await c.retention.purge()
     log.info("retention purge: %s", result)
     return result
+
+
+async def daily_digest(c: Container) -> int:
+    """Personal mode: one evening summary per owner and day (proof that monitoring works)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from app.domain.timing import utcnow
+    from app.services.digest import DigestService
+
+    s = c.settings
+    if not s.personal_mode or s.digest_hour < 0 or c.notifications is None:
+        return 0
+    sent_days: dict = getattr(c.repo, "digest_sent", None)
+    if sent_days is None:  # kept on the repository object -> saved with the demo state file
+        sent_days = {}
+        c.repo.digest_sent = sent_days
+    now = getattr(c.monitoring, "clock", utcnow)()
+    service = DigestService(c.repo, c.monitoring.market)
+    sent = 0
+    for telegram_id in s.admin_ids:
+        user = await c.repo.get_user_by_telegram_id(telegram_id)
+        if user is None or user.bot_blocked:
+            continue
+        local: datetime = now.astimezone(ZoneInfo(user.timezone))
+        day = local.date().isoformat()
+        if local.hour < s.digest_hour or sent_days.get(user.id) == day:
+            continue
+        sent_days[user.id] = day  # mark first: never send twice even if sending fails
+        try:
+            text = await service.build(user, now)
+            if text:
+                await c.notifications.notifier.send_text(user.telegram_id, text)
+                sent += 1
+        except NotifierBlocked:
+            await c.repo.update_user(user.id, bot_blocked=True)
+        except Exception:
+            log.warning("daily digest failed for user %s", user.id, exc_info=True)
+    return sent

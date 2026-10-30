@@ -105,6 +105,8 @@ class Settings(BaseModel):
     ai_vision: bool = False  # send the listing photo to the model (only for vision models, e.g. qwen2.5vl)
     # Hot-deal mode: the AI reads the description of every deal candidate before it is sent (local model = free).
     ai_screen_deals: bool = True
+    # Evening summary for the owner in personal mode (local hour, 0-23; -1 = off)
+    digest_hour: int = 21
 
     @field_validator("admin_ids", mode="before")
     @classmethod
