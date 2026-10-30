@@ -38,6 +38,19 @@ async def run_check(c: Container, search_id: int) -> dict:
                 await c.repo.update_user(user.id, bot_blocked=True)
             except Exception:  # informational message only
                 log.warning("baseline message failed for search %s", search_id, exc_info=True)
+    if outcome.suppressed_cap and c.notifications is not None:
+        search = await c.repo.get_search(search_id)
+        user = await c.repo.get_user(search.user_id) if search else None
+        if user is not None and not user.bot_blocked:
+            try:
+                await c.notifications.notifier.send_text(
+                    user.telegram_id, t("notify.capped", user.language, name=esc(search.name),
+                                        count=outcome.suppressed_cap))
+            except Exception:
+                log.warning("cap message failed for search %s", search_id, exc_info=True)
+    if outcome.suppressed_old:
+        log.info("search %s: %s matches skipped as published before the search existed",
+                 search_id, outcome.suppressed_old)
     return {"status": outcome.status, "new": outcome.new_listings, "matched": outcome.matched,
             "notifications": outcome.notifications, "reason": outcome.reason}
 

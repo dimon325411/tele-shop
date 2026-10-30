@@ -251,6 +251,7 @@ MESSAGES: dict[str, str] = {
     "notify.search": "🔎 wyszukiwanie: {name}",
     "notify.test_marker": "🧪 <i>Ogłoszenie testowe — nie jest prawdziwą ofertą.</i>",
     "notify.baseline": "🔎 „{name}”: pierwsze sprawdzenie zakończone, pasujących ogłoszeń teraz: {count}. Od teraz wyślę tylko nowe.",
+    "notify.capped": "➕ „{name}”: jeszcze {count} nowych pasujących ogłoszeń w tym sprawdzeniu — wysłałem tylko 10 pierwszych. Zawęź wyszukiwanie (słowa, cena, miasto), aby dostawać mniej.",
     "notify.search_paused": "⏸ Wstrzymano wyszukiwanie „{name}”.",
 
     # --- settings

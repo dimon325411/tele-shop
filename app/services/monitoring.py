@@ -26,6 +26,10 @@ PRICE_DROP_MIN_FRACTION = Decimal("0.05")  # notify only about drops of at least
 FETCH_TIMEOUT_SECONDS = 60
 LOCK_TTL_SECONDS = 300
 DEFAULT_BLOCK_SECONDS = 3600
+# A listing published before the search existed is "old" even if the source shows it to us only now
+# (sources may return a different subset of results on every request).
+OLD_LISTING_SLACK = timedelta(minutes=30)
+MAX_NEW_NOTIFICATIONS_PER_CHECK = 10
 
 
 @dataclass
@@ -38,6 +42,8 @@ class CheckOutcome:
     matched: int = 0
     notifications: int = 0
     baseline: bool = False
+    suppressed_old: int = 0  # matched, but published before the search was created
+    suppressed_cap: int = 0  # matched and new, but over the per-check notification cap
     retry_after: float | None = None
     source_status: dict[str, str] = field(default_factory=dict)
 
@@ -157,10 +163,19 @@ class MonitoringService:
                         inserted = await self.repo.add_match(search.id, result.listing.id, user.id, reasons)
                         if inserted:
                             matched += 1
-                            if notify_new:
-                                outcome.notifications += int(await self.repo.enqueue_notification(
-                                    user.id, result.listing.id, search.id, NotificationKind.NEW.value,
-                                    f"new:{result.listing.id}", result.listing.price, self.clock()))
+                            if not notify_new:
+                                continue
+                            posted = result.listing.posted_at
+                            if posted is not None and search.created_at is not None \
+                                    and posted < search.created_at - OLD_LISTING_SLACK:
+                                outcome.suppressed_old += 1
+                                continue
+                            if outcome.notifications >= MAX_NEW_NOTIFICATIONS_PER_CHECK:
+                                outcome.suppressed_cap += 1
+                                continue
+                            outcome.notifications += int(await self.repo.enqueue_notification(
+                                user.id, result.listing.id, search.id, NotificationKind.NEW.value,
+                                f"new:{result.listing.id}", result.listing.price, self.clock()))
                         elif price_drops and self._is_price_drop(result.old_price, result.listing.price):
                             outcome.notifications += int(await self.repo.enqueue_notification(
                                 user.id, result.listing.id, search.id, NotificationKind.PRICE_DROP.value,

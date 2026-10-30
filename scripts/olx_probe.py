@@ -48,7 +48,10 @@ def main(query: str) -> int:
     print(f"parsed {len(listings)} listings:")
     for l in listings[:10]:
         price = f"{l.price} {l.currency}" if l.price is not None else "brak ceny"
-        print(f"  - {l.title} | {price} | {l.city or '-'} | {l.condition or '-'} | {l.url}")
+        posted = l.posted_at.isoformat() if l.posted_at else "BRAK DATY"
+        print(f"  - {posted} | {l.title} | {price} | {l.city or '-'} | {l.condition or '-'} | {l.url}")
+    dated = sum(1 for l in listings if l.posted_at)
+    print(f"listings with publication date: {dated}/{len(listings)} (needed to tell new listings from old ones)")
     if not listings:
         print("no listings parsed (empty result or unknown structure) — check the saved file")
     return 0

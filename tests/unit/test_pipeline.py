@@ -424,3 +424,35 @@ class SubscriptionLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FloodProtectionTests(unittest.IsolatedAsyncioTestCase):
+    """Regression for the live test 2026-10-24: OLX returned a different subset of OLD listings on the
+    second check and the user got 51 'new' notifications at once."""
+
+    async def asyncSetUp(self):
+        self.app = await App().setup()
+        self.user = await self.app.user(111)
+        self.search = await self.app.searches.create(self.user, draft(keywords=["rower"]))
+        await self.app.monitoring.check_search(self.search.id)  # baseline
+
+    async def test_old_listings_surfacing_later_are_not_notified(self):
+        app = self.app
+        created = app.clock()
+        old = listing("old1", "Rower stary", posted_at=created - timedelta(days=3))
+        fresh = listing("new1", "Rower świeży", posted_at=created + timedelta(minutes=5))
+        unknown = listing("unk1", "Rower bez daty")  # no publication date -> still notified
+        for l in (old, fresh, unknown):
+            app.mock.publish(l)
+        out = await app.monitoring.check_search(self.search.id)
+        self.assertEqual((out.matched, out.notifications, out.suppressed_old), (3, 2, 1))
+
+    async def test_notifications_per_check_are_capped(self):
+        app = self.app
+        for i in range(25):
+            app.mock.publish(listing(f"c{i}", f"Rower {i}"))
+        out = await app.monitoring.check_search(self.search.id)
+        self.assertEqual((out.matched, out.notifications, out.suppressed_cap), (25, 10, 15))
+        # the capped ones are remembered and never sent later
+        out2 = await app.monitoring.check_search(self.search.id)
+        self.assertEqual(out2.notifications, 0)
