@@ -9,8 +9,8 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (BufferedInputFile, CallbackQuery, ErrorEvent, LabeledPrice, LinkPreviewOptions, Message,
-                           PreCheckoutQuery)
+from aiogram.types import (BufferedInputFile, CallbackQuery, ErrorEvent, KeyboardButton, LabeledPrice,
+                           LinkPreviewOptions, Message, PreCheckoutQuery, ReplyKeyboardMarkup)
 
 from app.bot.keyboards import markup
 from app.container import Container
@@ -63,7 +63,34 @@ async def edit_or_send(cb: CallbackQuery, reply: Reply) -> None:
 async def cmd_start(message: Message, ctl: Controller, state: FSMContext) -> None:
     await state.clear()
     u = message.from_user
-    await send(message, await ctl.start(u.id, u.username, u.first_name))
+    reply = await ctl.start(u.id, u.username, u.first_name)
+    await send(message, reply)
+    if reply.buttons:  # registered and allowed: persistent quick buttons under the input field
+        lang = (await ctl.c.repo.get_user_by_telegram_id(u.id)).language
+        await message.answer(t("kb.ready", lang), reply_markup=quick_keyboard(lang))
+
+
+def quick_keyboard(lang: str | None) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text=t("kb.deals", lang)), KeyboardButton(text=t("kb.stats", lang))],
+        [KeyboardButton(text=t("kb.searches", lang)), KeyboardButton(text=t("kb.menu", lang))],
+    ], resize_keyboard=True, is_persistent=True)
+
+
+QUICK_BUTTONS = {"kb.deals": "dl", "kb.stats": "st", "kb.searches": "searches", "kb.menu": "menu"}
+
+
+@router.message(F.text.func(lambda text: any(text == t(k) for k in QUICK_BUTTONS)))
+async def quick_button(message: Message, ctl: Controller, user, state: FSMContext, container: Container) -> None:
+    """Bottom keyboard: works from any state (also leaves an unfinished wizard)."""
+    await state.clear()
+    action = next(v for k, v in QUICK_BUTTONS.items() if message.text == t(k, user.language))
+    if action in ("dl", "st"):
+        await send_nav(message, user, container, action)
+    elif action == "searches":
+        await send(message, await ctl.list_searches(user))
+    else:
+        await send(message, ctl.menu(user.language))
 
 
 @router.message(Command("help"))
@@ -117,6 +144,10 @@ async def cb_menu(cb: CallbackQuery, ctl: Controller, user, state: FSMContext, c
         await send(cb.message, await ctl.plan(user))
     elif item == "help":
         await send(cb.message, ctl.help(user.language))
+    elif item == "home":
+        await edit_or_send(cb, ctl.menu(user.language))
+    elif item == "pack":
+        await cmd_pack(cb.message, user, container)
 
 
 # ------------------------------------------------------------------ wizard
@@ -368,8 +399,7 @@ async def cmd_compare(message: Message, user, container: Container) -> None:
     if len(searches) == 1:
         await _ai_answer(message, user, lambda: _compare_text(user, container, searches[0].id))
         return
-    rows = [[Button(s.name, callback=f"ai:c:{s.id}")] for s in searches]
-    await message.answer(t("ai.compare_choose", user.language), reply_markup=markup(rows))
+    await send_nav(message, user, container, "ai")
 
 
 @router.callback_query(F.data.regexp(r"^ai:c:\d+$"))
@@ -434,9 +464,7 @@ async def cmd_deals(message: Message, user, container: Container) -> None:
     if len(searches) == 1:
         await send_deals(message, user, container, searches)
         return
-    rows = [[Button(t("deals.all_button", user.language), callback="dl:all")]]
-    rows += [[Button(s.name, callback=f"dl:{s.id}")] for s in searches]
-    await message.answer(t("deals.choose", user.language), reply_markup=markup(rows))
+    await send_nav(message, user, container, "dl")
 
 
 @router.callback_query(F.data.regexp(r"^dl:(\d+|all)$"))
@@ -454,15 +482,27 @@ async def cb_deals(cb: CallbackQuery, user, container: Container) -> None:
     await send_deals(cb.message, user, container, [search])
 
 
-@router.message(Command("stats"))
-async def cmd_stats(message: Message, user, container: Container) -> None:
+async def send_nav(target: Message, user, container: Container, mode: str, category: str | None = None,
+                   cb: CallbackQuery | None = None) -> None:
     from app.analytics import Analytics
 
-    if not await container.searches.list(user):
-        await message.answer(t("searches.empty", user.language))
-        return
-    text, rows = await Analytics(container).stats_categories(user)
-    await send(message, Reply(text, rows))
+    text, rows = await Analytics(container).nav(user, mode, category)
+    if cb is not None:
+        await edit_or_send(cb, Reply(text, rows))
+    else:
+        await send(target, Reply(text, rows))
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message, user, container: Container) -> None:
+    await send_nav(message, user, container, "st")
+
+
+@router.callback_query(F.data.regexp(r"^nav:(st|ch|dl|ai)(:[a-z_]+)?$"))
+async def cb_nav(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    parts = cb.data.split(":")
+    await send_nav(cb.message, user, container, parts[1], parts[2] if len(parts) > 2 else None, cb=cb)
 
 
 async def send_stats(message: Message, user, container: Container, search, edit_cb: CallbackQuery | None = None):
@@ -475,26 +515,26 @@ async def send_stats(message: Message, user, container: Container, search, edit_
         await send(message, Reply(text, rows))
 
 
-@router.callback_query(F.data.regexp(r"^st:(home|c:[a-z_]+|s:\d+)$"))
+@router.callback_query(F.data.regexp(r"^st:s:\d+$"))
 async def cb_stats(cb: CallbackQuery, user, container: Container) -> None:
-    from app.analytics import Analytics
-
     await cb.answer()
-    parts = cb.data.split(":")
-    an = Analytics(container)
-    if parts[1] == "home":
-        text, rows = await an.stats_categories(user)
-    elif parts[1] == "c":
-        text, rows = await an.stats_category(user, parts[2])
-    else:
-        try:
-            search = await container.searches.get_owned(user, int(parts[2]))
-        except AccessDenied as exc:
-            await cb.message.answer(t(f"deny.{exc.code}", user.language))
-            return
-        await send_stats(cb.message, user, container, search, edit_cb=cb)
+    try:
+        search = await container.searches.get_owned(user, int(cb.data.split(":")[2]))
+    except AccessDenied as exc:
+        await cb.message.answer(t(f"deny.{exc.code}", user.language))
         return
-    await edit_or_send(cb, Reply(text, rows))
+    body = (getattr(cb.message, "text", None) or getattr(cb.message, "caption", None) or "")
+    from_notification = body.startswith(("🆕", "📉", "🔥")) or cb.message.photo
+    await send_stats(cb.message, user, container, search, edit_cb=None if from_notification else cb)
+
+
+@router.callback_query(F.data.regexp(r"^dlc:[a-z_]+$"))
+async def cb_deals_category(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    category = cb.data.split(":")[1]
+    searches = [s for s in await container.searches.list(user)
+                if s.is_active and (s.criteria.category or "other") == category]
+    await send_deals(cb.message, user, container, searches)
 
 
 @router.message(Command("pack"))
@@ -529,8 +569,7 @@ async def cmd_chart(message: Message, user, container: Container) -> None:
     if len(searches) == 1:
         await send_chart_options(message, user, container, searches[0])
         return
-    rows = [[Button(s.name, callback=f"chs:{s.id}")] for s in searches]
-    await message.answer(t("chart.choose", user.language), reply_markup=markup(rows))
+    await send_nav(message, user, container, "ch")
 
 
 @router.callback_query(F.data.regexp(r"^chs:\d+$"))

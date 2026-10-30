@@ -329,10 +329,44 @@ class StatsCardTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("1. 3 800 PLN · 256 GB (−3% vs mediana)", text)
         self.assertIn("2. 3 850 PLN · 256 GB (−1% vs mediana)", text)
         self.assertEqual([b.callback for b in buttons[0]], [f"chs:{search.id}", f"dl:{search.id}"])
-        cats, rows = await an.stats_categories(user)
-        self.assertEqual(rows[0][0].callback, "st:c:other")
-        _, rows = await an.stats_category(user, "other")
+        _, rows = await an.nav(user, "st")  # few searches: models right away
         self.assertEqual(rows[0][0].callback, f"st:s:{search.id}")
+        _, rows = await an.nav(user, "ch")
+        self.assertEqual(rows[0][0].callback, f"chs:{search.id}")
         intent, found, _ = detect("статистика айфон 15 про", [search])
         self.assertEqual((intent, found), ("stats", [search]))
         self.assertEqual(detect("mediana iphone 15 pro", [search])[0], "stats")
+
+
+class NavigationTests(ManySearchesTests):
+    async def test_category_then_model_for_every_tool(self):
+        from app.analytics import Analytics
+        from app.controller import Controller, menu_rows
+        from tests.unit.test_controller_jobs import container
+
+        an = Analytics(container(self.app))
+        text, rows = await an.nav(self.user, "dl")
+        self.assertIn("Okazje", text)
+        flat = [b.callback for row in rows for b in row]
+        self.assertEqual(flat[0], "dl:all")
+        self.assertIn("nav:dl:karty_graficzne", flat)
+        self.assertEqual(flat[-1], "menu:home")
+        _, rows = await an.nav(self.user, "dl", "karty_graficzne")
+        flat = [b.callback for row in rows for b in row]
+        self.assertEqual(flat[0], "dlc:karty_graficzne")
+        self.assertEqual(len([c for c in flat if c.startswith("dl:")]), 16)
+        self.assertEqual(flat[-1], "nav:dl")
+        for mode, leaf in (("st", "st:s:"), ("ch", "chs:"), ("ai", "ai:c:")):
+            _, rows = await an.nav(self.user, mode, "iphone")
+            self.assertTrue(rows[0][0].callback.startswith(leaf), mode)
+            self.assertEqual(sum(len(r) for r in rows[:-1]), 15)  # 15 pack iPhones (the manual one has no category)
+        menu = [b.callback for row in menu_rows("pl", personal=True) for b in row]
+        for cb in ("nav:dl", "nav:st", "nav:ch", "nav:ai", "menu:searches", "menu:new", "menu:pack",
+                   "settings:open", "menu:status", "menu:help"):
+            self.assertIn(cb, menu)
+        self.assertNotIn("menu:plan", menu)  # nothing to buy in personal mode
+        card_text, card = await an.stats(self.user, (await self.app.searches.list(self.user))[0])
+        cbs = [b.callback for row in card for b in row]
+        self.assertTrue(any(c.startswith("ai:c:") for c in cbs) and any(c.startswith("s:pause:") for c in cbs))
+        self.assertIn("menu:home", cbs)
+        self.assertIn("🏠", Controller(container(self.app)).menu("pl").buttons[0][0].text + "🏠")

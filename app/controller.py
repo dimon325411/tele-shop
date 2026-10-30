@@ -36,13 +36,18 @@ class Reply:
     alert: bool = False  # for callback answers
 
 
-def menu_rows(lang: str | None) -> list[list[Button]]:
-    return [
-        [Button(t("btn.new_search", lang), callback="menu:new")],
-        [Button(t("btn.searches", lang), callback="menu:searches"), Button(t("btn.status", lang), callback="menu:status")],
-        [Button(t("btn.plan", lang), callback="menu:plan"), Button(t("btn.settings", lang), callback="settings:open")],
-        [Button(t("btn.help", lang), callback="menu:help")],
+def menu_rows(lang: str | None, personal: bool = False) -> list[list[Button]]:
+    """Main menu: every feature is one tap away (commands stay as shortcuts)."""
+    rows = [
+        [Button(t("btn.m_deals", lang), callback="nav:dl"), Button(t("btn.m_stats", lang), callback="nav:st")],
+        [Button(t("btn.m_charts", lang), callback="nav:ch"), Button(t("btn.m_ai", lang), callback="nav:ai")],
+        [Button(t("btn.searches", lang), callback="menu:searches"), Button(t("btn.new_search", lang), callback="menu:new")],
+        [Button(t("btn.m_pack", lang), callback="menu:pack"), Button(t("btn.settings", lang), callback="settings:open")],
+        [Button(t("btn.status", lang), callback="menu:status"), Button(t("btn.help", lang), callback="menu:help")],
     ]
+    if not personal:
+        rows.append([Button(t("btn.plan", lang), callback="menu:plan")])
+    return rows
 
 
 def deny(exc: AccessDenied, lang: str | None) -> Reply:
@@ -75,10 +80,13 @@ class Controller:
                      until=fmt_dt(access.subscription.expires_at, user.timezone, lang))
         else:
             text = t("start.welcome_back", lang, name=name)
-        return Reply(text, menu_rows(lang))
+        return Reply(text, menu_rows(lang, self.settings.personal_mode))
+
+    def menu(self, lang: str | None = None) -> Reply:
+        return Reply(t("menu.title", lang), menu_rows(lang, self.settings.personal_mode))
 
     def help(self, lang: str | None = None) -> Reply:
-        return Reply(t("help", lang), menu_rows(lang))
+        return Reply(t("help", lang), menu_rows(lang, self.settings.personal_mode))
 
     def terms(self, user: User) -> Reply:
         buttons = [] if user.terms_accepted_at else [[Button(t("btn.accept_terms", user.language), callback="plan:terms")]]

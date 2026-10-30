@@ -18,6 +18,7 @@ from app.services.market import ALL_VARIANTS, usable
 DEFAULT_SPREAD = 10
 STATS_CHEAPEST = 3
 STATS_MAX_VARIANTS = 4
+FLAT_NAV_LIMIT = 8  # up to this many searches: no category step
 CATEGORY_ORDER = ["iphone", "konsole", "karty_graficzne", "laptopy", "komputery"]
 MIN_HISTORY_DAYS = 2
 
@@ -98,24 +99,39 @@ class Analytics:
 
 
     # ------------------------------------------------------------------ /stats
-    async def stats_categories(self, user: User) -> tuple[str, list[list[Button]]]:
+    async def nav(self, user: User, mode: str, category: str | None = None) -> tuple[str, list[list[Button]]]:
+        """One navigation for every tool: category -> model. ``mode``: st (stats), ch (chart), dl (deals), ai."""
         lang = user.language
         searches = await self.c.searches.list(user)
+        if not searches:
+            return t("searches.empty", lang), [[Button(t("btn.m_pack", lang), callback="menu:pack")],
+                                               [Button(t("btn.new_search", lang), callback="menu:new")]]
         counts: dict[str, int] = {}
         for s in searches:
             counts[s.criteria.category or "other"] = counts.get(s.criteria.category or "other", 0) + 1
-        order = [c for c in CATEGORY_ORDER if c in counts] + sorted(c for c in counts if c not in CATEGORY_ORDER)
-        rows = [[Button(f"{_cat_label(c, lang)} ({counts[c]})", callback=f"st:c:{c}")] for c in order]
-        return t("stats.choose_cat", lang), rows
-
-    async def stats_category(self, user: User, category: str) -> tuple[str, list[list[Button]]]:
-        lang = user.language
-        searches = [s for s in await self.c.searches.list(user) if (s.criteria.category or "other") == category]
         rows: list[list[Button]] = []
-        for i in range(0, len(searches), 2):  # two per row: 16 iPhones fit on one screen
-            rows.append([Button(s.name, callback=f"st:s:{s.id}") for s in searches[i:i + 2]])
-        rows.append([Button(t("btn.back", lang), callback="st:home")])
-        return t("stats.choose_search", lang, category=_cat_label(category, lang)), rows
+        if category is None and len(searches) > FLAT_NAV_LIMIT and len(counts) > 1:
+            if mode == "dl":
+                rows.append([Button(t("btn.all_searches", lang), callback="dl:all")])
+            order = [c for c in CATEGORY_ORDER if c in counts] + sorted(c for c in counts if c not in CATEGORY_ORDER)
+            for i in range(0, len(order), 2):
+                rows.append([Button(f"{_cat_label(c, lang)} ({counts[c]})", callback=f"nav:{mode}:{c}")
+                             for c in order[i:i + 2]])
+            rows.append([Button(t("btn.menu", lang), callback="menu:home")])
+            return t(f"nav.title.{mode}", lang, what=t("nav.what.category", lang)), rows
+        chosen = [s for s in searches if category is None or (s.criteria.category or "other") == category]
+        if mode == "dl" and category is not None:
+            rows.append([Button(t("btn.whole_category", lang, category=_cat_label(category, lang)),
+                                callback=f"dlc:{category}")])
+        elif mode == "dl" and len(chosen) > 1:
+            rows.append([Button(t("btn.all_searches", lang), callback="dl:all")])
+        leaf = {"st": "st:s:{}", "ch": "chs:{}", "dl": "dl:{}", "ai": "ai:c:{}"}[mode]
+        for i in range(0, len(chosen), 2):  # two per row: 16 iPhones fit on one screen
+            rows.append([Button(s.name, callback=leaf.format(s.id)) for s in chosen[i:i + 2]])
+        back = f"nav:{mode}" if category is not None and len(counts) > 1 and len(searches) > FLAT_NAV_LIMIT \
+            else "menu:home"
+        rows.append([Button(t("btn.back", lang), callback=back)])
+        return t(f"nav.title.{mode}", lang, what=t("nav.what.model", lang)), rows
 
     async def stats(self, user: User, search: Search) -> tuple[str, list[list[Button]]]:
         """Market card of one search: median, typical range, cheapest per storage variant, trend, cheapest offers."""
@@ -129,9 +145,13 @@ class Analytics:
         today = sum(1 for m in market if m.first_seen_at and m.first_seen_at >= day_start
                     and (m.posted_at is None or m.posted_at >= day_start))
         lines = [t("stats.title", lang, name=esc(search.name))]
+        pause = (Button(t("btn.pause", lang), callback=f"s:pause:{search.id}") if search.is_active
+                 else Button(t("btn.resume", lang), callback=f"s:resume:{search.id}"))
         buttons = [[Button(t("btn.stats_chart", lang), callback=f"chs:{search.id}"),
                     Button(t("btn.stats_deals", lang), callback=f"dl:{search.id}")],
-                   [Button(t("btn.back", lang), callback=f"st:c:{search.criteria.category or 'other'}")]]
+                   [Button(t("btn.card_ai", lang), callback=f"ai:c:{search.id}"), pause],
+                   [Button(t("btn.back", lang), callback=f"nav:st:{search.criteria.category or 'other'}"),
+                    Button(t("btn.menu", lang), callback="menu:home")]]
         if not market:
             lines.append(t("stats.empty", lang))
             return "\n\n".join(lines), buttons

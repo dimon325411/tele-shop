@@ -13,12 +13,37 @@ MESSAGES: dict[str, str] = {
         "jest wyłączony do czasu uzyskania zgody serwisów (/help)."
     ),
     "start.welcome_personal": (
-        "👋 Cześć, {name}! To Twój prywatny bot.\n\n"
-        "Źródła: OLX.pl (publiczne wyniki wyszukiwania, sprawdzanie najczęściej co 10 min) i źródło testowe.\n"
-        "Jeśli OLX ograniczy dostęp, monitoring tego źródła zatrzyma się automatycznie."
+        "👋 Cześć, {name}! To Twój prywatny bot do odsprzedaży.\n\n"
+        "🔥 <b>Okazje</b> — świeże oferty poniżej mediany rynku\n"
+        "📊 <b>Statystyki</b> — mediana, typowe ceny i najtańsze oferty każdego modelu\n"
+        "📈 <b>Wykresy cen</b> · 🤖 <b>Zapytaj AI</b> — porównanie ofert\n"
+        "📦 <b>Pakiet modeli</b> — gotowe wyszukiwania (iPhone, konsole, karty, MacBooki, PC)\n\n"
+        "Gorące okazje przychodzą same, a wieczorem — krótkie podsumowanie dnia. "
+        "OLX sprawdzam najczęściej co 10 min; jeśli ograniczy dostęp, monitoring zatrzyma się automatycznie."
     ),
     "start.welcome_back": "👋 Witaj ponownie, {name}! Wybierz, co chcesz zrobić.",
     "menu.title": "Menu główne:",
+    "btn.m_deals": "🔥 Okazje",
+    "btn.m_stats": "📊 Statystyki",
+    "btn.m_charts": "📈 Wykresy cen",
+    "btn.m_ai": "🤖 Zapytaj AI",
+    "btn.m_pack": "📦 Pakiet modeli",
+    "btn.menu": "🏠 Menu",
+    "btn.whole_category": "🔥 Cała kategoria: {category}",
+    "btn.all_searches": "🔥 Wszystkie wyszukiwania",
+    "kb.deals": "🔥 Okazje",
+    "kb.stats": "📊 Statystyki",
+    "kb.searches": "📋 Wyszukiwania",
+    "kb.menu": "🏠 Menu",
+    "kb.ready": "⌨️ Szybkie przyciski są teraz pod polem wiadomości.",
+    "nav.title.st": "📊 <b>Statystyki rynku</b> — wybierz {what}:",
+    "nav.title.ch": "📈 <b>Wykres cen</b> — wybierz {what}:",
+    "nav.title.dl": "🔥 <b>Okazje</b> — wybierz {what}:",
+    "nav.title.ai": "🤖 <b>AI: porównaj oferty</b> (ostatnie 7 dni) — wybierz {what}:",
+    "nav.what.category": "kategorię",
+    "nav.what.model": "model",
+    "btn.card_ai": "🤖 Porównaj (AI)",
+    "btn.card_stats": "📊 Statystyki",
     "btn.new_search": "➕ Nowe wyszukiwanie",
     "btn.searches": "📋 Moje wyszukiwania",
     "btn.plan": "⭐ Subskrypcja",

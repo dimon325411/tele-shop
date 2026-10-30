@@ -87,8 +87,11 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     if listing.is_test:
         lines.append(t("notify.test_marker", lang))
     buttons = [[Button(t("btn.open_listing", lang), url=listing.url)]]
+    if item.search_id is not None:
+        buttons[0].append(Button(t("btn.card_stats", lang), callback=f"st:s:{item.search_id}"))
     if getattr(item, "ai_enabled", False):
         buttons.append([Button(t("btn.ask_ai", lang), callback=f"ai:l:{listing.id}")])
+
     row = []
     if item.search_id is not None:
         row.append(Button(t("btn.pause_search", lang), callback=f"s:pause:{item.search_id}"))
