@@ -179,6 +179,18 @@ UPDATE notifications SET
     claimed_at = NULL
 WHERE id = :id
 """
+COMPARABLE_PRICES = """
+SELECT l.price FROM match_results m
+JOIN listings l ON l.id = m.listing_id
+WHERE m.search_id = :search_id
+  AND l.id <> :listing_id
+  AND l.price IS NOT NULL
+  AND l.last_seen_at >= :since
+  AND (CAST(:currency AS text) IS NULL OR l.currency = CAST(:currency AS text))
+  AND (CAST(:condition AS text) IS NULL OR l.condition = CAST(:condition AS text))
+ORDER BY l.last_seen_at DESC
+LIMIT :limit
+"""
 COUNT_SENT_SINCE = """
 SELECT count(*) FROM notifications WHERE user_id = :user_id AND status = 'sent' AND sent_at >= :since
 """

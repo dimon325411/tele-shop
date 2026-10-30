@@ -294,6 +294,12 @@ class SqlRepository:
         r = await self._one(q.COUNT_SENT_SINCE, user_id=user_id, since=since)
         return int(r["count"])
 
+    async def list_comparable_prices(self, search_id, exclude_listing_id, since, currency, condition,
+                                     limit=500) -> list[Decimal]:
+        rows = await self._exec(q.COMPARABLE_PRICES, search_id=search_id, listing_id=exclude_listing_id, since=since,
+                                currency=currency, condition=condition, limit=limit)
+        return [r["price"] for r in rows]
+
     # --------------------------------------------------------------- sources
     async def get_source_state(self, source: str) -> SourceState | None:
         r = await self._one(q.GET_SOURCE_STATE, source=source)

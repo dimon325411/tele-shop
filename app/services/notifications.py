@@ -16,11 +16,13 @@ from typing import Protocol
 
 from app.config import Settings
 from app.domain.models import Notification, NotificationStatus, StoredListing, User
+from app.domain.pricing import PriceStats, price_stats
 from app.domain.timing import Clock, backoff_seconds, in_quiet_hours, local_day_start_utc, quiet_hours_end, utcnow
 from app.services.subscriptions import SubscriptionService
 from app.storage.repo import Repository
 
 log = logging.getLogger(__name__)
+PRICE_WINDOW_DAYS = 30
 
 
 class NotifierBlocked(Exception):
@@ -41,6 +43,7 @@ class OutgoingListing:
     search_name: str | None
     kind: str
     old_price: Decimal | None
+    price_stats: "PriceStats | None" = None
 
 
 class Notifier(Protocol):
@@ -68,6 +71,18 @@ class NotificationService:
         self.notifier = notifier
         self.settings = settings
         self.clock = clock
+
+    async def comparable_stats(self, search_id: int, listing: StoredListing, now) -> PriceStats | None:
+        """Median price of other listings matched by the same search (same condition when possible)."""
+        since = now - timedelta(days=PRICE_WINDOW_DAYS)
+        if listing.condition:
+            prices = await self.repo.list_comparable_prices(search_id, listing.id, since, listing.currency,
+                                                            listing.condition)
+            stats = price_stats(prices, same_condition=True)
+            if stats is not None:
+                return stats
+        prices = await self.repo.list_comparable_prices(search_id, listing.id, since, listing.currency, None)
+        return price_stats(prices)
 
     async def deliver_batch(self) -> DeliveryReport:
         report = DeliveryReport()
@@ -109,9 +124,12 @@ class NotificationService:
             search = await self.repo.get_search(n.search_id)
             search_name = search.name if search else None
         old_price = listing.previous_price if n.kind.value == "price_drop" else None
+        stats = None
+        if access.plan.advanced_filters and n.search_id is not None and listing.price is not None:
+            stats = await self.comparable_stats(n.search_id, listing, now)
         try:
             message_id = await self.notifier.send_listing(
-                OutgoingListing(user, listing, n.search_id, search_name, n.kind.value, old_price))
+                OutgoingListing(user, listing, n.search_id, search_name, n.kind.value, old_price, stats))
         except NotifierBlocked:
             await self.repo.update_user(user.id, bot_blocked=True)
             await self.repo.finish_notification(n.id, NotificationStatus.CANCELLED.value, now, "bot blocked by user")

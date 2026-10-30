@@ -11,6 +11,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from app.domain.models import Plan, Search
+from app.domain.pricing import verdict_key
 from app.i18n import esc, format_interval, t
 from app.services.notifications import OutgoingListing
 from app.sources.registry import DISPLAY_NAMES
@@ -50,6 +51,12 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
         lines.append(t("notify.price", lang, price=fmt_price(listing.price), currency=currency))
     else:
         lines.append(t("notify.price_unknown", lang))
+    stats = getattr(item, "price_stats", None)
+    if stats is not None and listing.price is not None:
+        diff = stats.diff_percent(listing.price)
+        lines.append(t("notify.price_compare", lang, count=stats.count, median=fmt_price(stats.median),
+                       currency=currency, verdict=t(verdict_key(diff), lang, pct=abs(diff)),
+                       scope=t("price.scope_condition" if stats.same_condition else "price.scope_all", lang)))
     lines.append(t("notify.source", lang, source=esc(DISPLAY_NAMES.get(listing.source, listing.source))))
     location = ", ".join(x for x in (listing.city, listing.region) if x)
     if location:
@@ -115,6 +122,8 @@ def render_plan(plan: Plan, lang: str | None = None) -> str:
         extras.append(t("plan.extra.fuzzy", lang))
     if plan.price_drop_alerts:
         extras.append(t("plan.extra.price_drop", lang))
+    if plan.advanced_filters:
+        extras.append(t("plan.extra.price_compare", lang))
     return t("plan.item", lang, name=esc(plan.name), price=plan.price_stars, days=plan.duration_days,
              searches=plan.max_active_searches, interval=format_interval(plan.min_interval_seconds, lang),
              daily=plan.max_notifications_per_day, extras="\n".join(extras)).rstrip()

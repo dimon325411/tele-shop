@@ -216,6 +216,7 @@ MESSAGES: dict[str, str] = {
         "• wyszukiwania: {searches}\n• sprawdzanie co {interval}\n• powiadomienia/dzień: {daily}\n{extras}"
     ),
     "plan.extra.fuzzy": "• tolerancja literówek",
+    "plan.extra.price_compare": "• porównanie ceny z podobnymi ogłoszeniami",
     "plan.extra.price_drop": "• alerty o spadku ceny",
     "plan.payments_disabled": (
         "💤 Płatności są obecnie wyłączone (tryb testowy usługi). Skontaktuj się z /paysupport."
@@ -246,6 +247,12 @@ MESSAGES: dict[str, str] = {
     "notify.price": "💰 {price} {currency}",
     "notify.price_drop_line": "💰 <s>{old} {currency}</s> → <b>{price} {currency}</b>",
     "notify.price_unknown": "💰 cena nie podana",
+    "notify.price_compare": "📊 Podobne{scope} ({count}): mediana {median} {currency} → {verdict}",
+    "price.cheaper": "ta oferta {pct}% taniej",
+    "price.pricier": "ta oferta {pct}% drożej",
+    "price.typical": "cena typowa",
+    "price.scope_condition": " w tym samym stanie",
+    "price.scope_all": "",
     "notify.source": "🌐 {source}",
     "notify.location": "📍 {location}",
     "notify.condition": "📦 {condition}",

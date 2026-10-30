@@ -317,6 +317,22 @@ class MemoryRepository:
         return sum(1 for n in self.notifications.values()
                    if n.user_id == user_id and n.status is NotificationStatus.SENT and n.sent_at and n.sent_at >= since)
 
+    async def list_comparable_prices(self, search_id, exclude_listing_id, since, currency, condition,
+                                     limit=500) -> list[Decimal]:
+        out = []
+        for (sid, lid) in self.matches:
+            if sid != search_id or lid == exclude_listing_id:
+                continue
+            l = self.listings.get(lid)
+            if l is None or l.price is None or l.last_seen_at < since:
+                continue
+            if currency is not None and l.currency != currency:
+                continue
+            if condition is not None and l.condition != condition:
+                continue
+            out.append(l.price)
+        return out[:limit]
+
     # --------------------------------------------------------------- sources
     async def get_source_state(self, source: str) -> SourceState | None:
         return _c(self.source_states.get(source))
