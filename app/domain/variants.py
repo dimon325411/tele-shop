@@ -20,7 +20,10 @@ JUNK_WORDS = [
     "nie dziala", "niedzialajacy", "na czesci", "do naprawy", "zalany", "zalana", "bootloop", "wadliwy",
     "icloud", "blokada", "zablokowany", "zablokowana", "simlock",
     "zamienie", "zamiana", "kupie", "skupuje", "skup", "atrapa", "makieta",
+    "zarezerwowane", "zarezerwowany", "zarezerwowana", "rezerwacja", "sprzedane", "sprzedany", "sprzedana",
 ]
+# several different models in one title ("iPhone 15 Pro Max iPhone 16 Pro ...") = a shop list, not one device
+_MODEL_NUMBER = re.compile(r"\b(?:iphone|rtx|gtx|rx)\s*(\d{2,4})")
 # only when the title STARTS with them ("Etui do iPhone 15 Pro"), since good offers often
 # list extras ("iPhone 15 Pro + etui + pudelko")
 ACCESSORY_PREFIXES = ["etui", "case", "szklo", "szybka", "folia", "obudowa", "ladowarka", "kabel", "pudelko",
@@ -49,4 +52,4 @@ def is_junk(title: str | None) -> bool:
         for i in range(len(tokens) - n + 1):
             if tokens[i:i + n] == words:
                 return True
-    return False
+    return len(set(_MODEL_NUMBER.findall(" ".join(tokens)))) > 1

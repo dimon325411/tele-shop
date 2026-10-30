@@ -34,6 +34,27 @@ def get(params: dict) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+# Only listings that ARE the product count when choosing a section (a "playstation 5" query returns
+# mostly games and collector's editions, which live in other OLX sections).
+LOOKS_LIKE = {
+    "iphone": (("iphone",), ("etui", "case", "szklo", "folia")),
+    "laptopy": (("laptop", "macbook", "notebook"), ()),
+    "komputery": (("komputer", "pc", "zestaw"), ("laptop",)),
+    "konsole": (("konsola", "ps5", "playstation", "xbox"), ("gra", "gry", "gier", "edycja", "kolekcjonerska",
+                                                            "steelbook", "pad", "kontroler")),
+    "karty_graficzne": (("karta", "rtx", "gtx", "radeon"), ("laptop", "komputer", "zestaw", "pc")),
+}
+
+
+def looks_like(code: str, title: str) -> bool:
+    words = title.lower().replace("-", " ").split()
+    if code == "konsole" and any(w.startswith("konsol") for w in words):
+        return True  # "Konsola PS5 + 2 pady + gra" is a console
+    need, forbidden = LOOKS_LIKE.get(code, ((), ()))
+    return (not need or any(w.startswith(n) for w in words for n in need)) and \
+        not any(w.startswith(f) for w in words for f in forbidden)
+
+
 def organic(data: dict) -> list[dict]:
     promoted = set(((data.get("metadata") or {}).get("source") or {}).get("promoted") or [])
     return [it for i, it in enumerate(data.get("data") or []) if i not in promoted]
@@ -51,6 +72,8 @@ def main() -> int:
                 print(f"HTTP {exc.code} for '{q}' — OLX refused; stop and try later. Do not loop.")
                 return 2
             for it in organic(data):
+                if not looks_like(code, it.get("title") or ""):
+                    continue
                 cid = (it.get("category") or {}).get("id")
                 if cid is not None:
                     counts[cid] += 1

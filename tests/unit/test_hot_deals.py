@@ -462,3 +462,14 @@ class PackSyncAndSuspiciousTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Bardzo tanio", text)
         item.price_stats = PriceStats(D(1700), D(1600), D(1800), 20)
         self.assertNotIn("Bardzo tanio", render_listing_notification(item, T0)[0])
+
+
+class JunkFromLiveDataTests(unittest.TestCase):
+    def test_reserved_and_multi_model_titles(self):
+        from app.domain.variants import is_junk
+
+        for title in ["Iphone 17 PRO MAX Zarezerwowane", "Iphone 15 pro MAX iphone 16 pro iphone 16 pro MAX",
+                      "PS5 sprzedane"]:
+            self.assertTrue(is_junk(title), title)
+        for title in ["iPhone 15 Pro 256GB", "Gigabyte RTX 3060 12GB", "PC i5 RTX 4070 32GB RAM"]:
+            self.assertFalse(is_junk(title), title)

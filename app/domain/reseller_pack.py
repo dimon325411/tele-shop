@@ -65,7 +65,7 @@ PACK: list[PackItem] = [
     PackItem("RTX 4060 Ti", G, ["rtx 4060 ti"], [], 700),
     PackItem("RTX 4070", G, ["rtx 4070"], ["4070 ti", "4070 super"], 1000),
     PackItem("RTX 4070 Super", G, ["rtx 4070 super"], ["ti super"], 1200),
-    PackItem("RTX 4070 Ti", G, ["rtx 4070 ti"], [], 1400),
+    PackItem("RTX 4070 Ti", G, ["rtx 4070 ti"], ["ti super"], 1400),
     PackItem("RTX 4080", G, ["rtx 4080"], [], 2200),
     PackItem("RTX 4090", G, ["rtx 4090"], [], 3500),
     PackItem("RTX 5060 Ti", G, ["rtx 5060 ti"], [], 900),
@@ -84,10 +84,10 @@ PACK: list[PackItem] = [
     PackItem("PC z RTX 3060", "komputery", ["rtx 3060"], ["3060 ti"], 1200),
     PackItem("PC z RTX 3070", "komputery", ["rtx 3070"], ["3070 ti"], 1600),
     PackItem("PC z RTX 4060", "komputery", ["rtx 4060"], ["4060 ti"], 1500),
-    PackItem("PC z RTX 4070", "komputery", ["rtx 4070"], [], 2200),
+    PackItem("PC z RTX 4070", "komputery", ["rtx 4070"], ["4070 ti", "4070 super"], 2200),
     PackItem("PC z RTX 5060", "komputery", ["rtx 5060"], ["5060 ti"], 1800),
     PackItem("PC z RTX 5060 Ti", "komputery", ["rtx 5060 ti"], [], 2200),
-    PackItem("PC z RTX 5070", "komputery", ["rtx 5070"], ["5070 ti"], 2600),
+    PackItem("PC z RTX 5070", "komputery", ["rtx 5070"], ["5070 ti"], 2600),  # noqa: E501
     PackItem("PC z RTX 5070 Ti", "komputery", ["rtx 5070 ti"], [], 3200),
 ]
 

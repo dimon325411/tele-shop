@@ -20,7 +20,7 @@ PRESETS: dict[str, list[str]] = {
     "iphone": ["iphone 15 pro", "iphone 13"],
     "laptopy": ["laptop lenovo", "macbook air"],
     "komputery": ["komputer stacjonarny", "komputer gamingowy"],
-    "konsole": ["playstation 5", "xbox series x"],
+    "konsole": ["konsola playstation 5", "konsola xbox series x"],
     "karty_graficzne": ["karta graficzna rtx", "rtx 3070"],
 }
 
