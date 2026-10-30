@@ -15,6 +15,7 @@ from app.domain.models import NotificationKind, Search, SourceState
 from app.domain.plans import monitored_search_ids
 from app.domain.timing import Clock, backoff_seconds, utcnow
 from app.services.locks import Locker
+from app.services.market import MarketService
 from app.services.subscriptions import SubscriptionService
 from app.sources.base import SourceBlocked, SourceDisabled, SourceError, SourceLayoutChanged, SourceUnavailable
 from app.sources.registry import SourceRegistry
@@ -44,6 +45,7 @@ class CheckOutcome:
     baseline: bool = False
     suppressed_old: int = 0  # matched, but published before the search was created
     suppressed_cap: int = 0  # matched and new, but over the per-check notification cap
+    suppressed_not_deal: int = 0  # reseller mode: matched and new, but not cheap enough
     retry_after: float | None = None
     source_status: dict[str, str] = field(default_factory=dict)
 
@@ -57,6 +59,7 @@ class MonitoringService:
         self.locker = locker
         self.settings = settings
         self.clock = clock
+        self.market = MarketService(repo, clock)
 
     # ------------------------------------------------------------ scheduling
     async def plan_due_checks(self) -> list[int]:
@@ -169,6 +172,11 @@ class MonitoringService:
                             if posted is not None and search.created_at is not None \
                                     and posted < search.created_at - OLD_LISTING_SLACK:
                                 outcome.suppressed_old += 1
+                                continue
+                            deal_min = search.criteria.deal_min_discount
+                            if deal_min and await self.market.evaluate_deal(search.id, result.listing,
+                                                                            deal_min) is None:
+                                outcome.suppressed_not_deal += 1
                                 continue
                             if outcome.notifications >= MAX_NEW_NOTIFICATIONS_PER_CHECK:
                                 outcome.suppressed_cap += 1

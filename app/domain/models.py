@@ -94,6 +94,7 @@ class SearchCriteria:
     include_unknown: bool = True
     fuzzy: bool = False
     match_description: bool = False  # keywords are searched in the title only unless enabled
+    deal_min_discount: int | None = None  # reseller mode: notify only if >= N % below the market median
 
 
 @dataclass

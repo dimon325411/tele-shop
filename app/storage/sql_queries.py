@@ -73,16 +73,16 @@ ORDER BY id LIMIT :limit
 
 SEARCH_COLUMNS = (
     "id, user_id, name, sources, keywords, alt_keywords, excluded_keywords, category, price_min, price_max, "
-    "currency, condition, city, region, radius_km, delivery, include_unknown, fuzzy, match_description, interval_seconds, is_active, "
+    "currency, condition, city, region, radius_km, delivery, include_unknown, fuzzy, match_description, deal_min_discount, interval_seconds, is_active, "
     "paused_reason, baseline_done, consecutive_failures, last_checked_at, last_success_at, next_check_at, created_at"
 )
 CREATE_SEARCH = f"""
 INSERT INTO searches (user_id, name, sources, keywords, alt_keywords, excluded_keywords, category, price_min,
                       price_max, currency, condition, city, region, radius_km, delivery, include_unknown, fuzzy,
-                      match_description, interval_seconds, is_active, next_check_at, created_at, updated_at)
+                      match_description, deal_min_discount, interval_seconds, is_active, next_check_at, created_at, updated_at)
 VALUES (:user_id, :name, CAST(:sources AS text[]), CAST(:keywords AS text[]), CAST(:alt_keywords AS text[]),
         CAST(:excluded_keywords AS text[]), :category, :price_min, :price_max, :currency, :condition, :city,
-        :region, :radius_km, :delivery, :include_unknown, :fuzzy, :match_description, :interval_seconds, :is_active, :next_check_at,
+        :region, :radius_km, :delivery, :include_unknown, :fuzzy, :match_description, :deal_min_discount, :interval_seconds, :is_active, :next_check_at,
         :created_at, :created_at)
 RETURNING {SEARCH_COLUMNS}
 """
@@ -197,6 +197,23 @@ WHERE m.search_id = :search_id
 ORDER BY l.last_seen_at DESC
 LIMIT :limit
 """
+ACTIVE_MATCHES = f"""
+SELECT {", ".join("l." + c.strip() for c in LISTING_COLUMNS.split(","))}
+FROM match_results m JOIN listings l ON l.id = m.listing_id
+WHERE m.search_id = :search_id AND l.last_seen_at >= :seen_since
+ORDER BY l.last_seen_at DESC LIMIT :limit
+"""
+UPSERT_SNAPSHOT = """
+INSERT INTO market_snapshots (search_id, day, variant, count, median, p25, p75, min_price)
+VALUES (:search_id, :day, :variant, :count, :median, :p25, :p75, :min_price)
+ON CONFLICT (search_id, day, variant) DO UPDATE SET
+    count = EXCLUDED.count, median = EXCLUDED.median, p25 = EXCLUDED.p25, p75 = EXCLUDED.p75,
+    min_price = EXCLUDED.min_price
+"""
+LIST_SNAPSHOTS = """
+SELECT search_id, day, variant, count, median, p25, p75, min_price FROM market_snapshots
+WHERE search_id = :search_id AND variant = :variant AND day >= :since_day ORDER BY day
+"""
 USER_LISTING_MATCH = """
 SELECT m.search_id FROM match_results m
 WHERE m.user_id = :user_id AND m.listing_id = :listing_id
@@ -302,7 +319,7 @@ USER_UPDATABLE = {
 }
 SEARCH_UPDATABLE = {
     "name", "sources", "keywords", "alt_keywords", "excluded_keywords", "category", "price_min", "price_max",
-    "currency", "condition", "city", "region", "radius_km", "delivery", "include_unknown", "fuzzy", "match_description",
+    "currency", "condition", "city", "region", "radius_km", "delivery", "include_unknown", "fuzzy", "match_description", "deal_min_discount",
     "interval_seconds", "is_active", "paused_reason", "baseline_done", "consecutive_failures", "last_checked_at",
     "last_success_at", "next_check_at",
 }

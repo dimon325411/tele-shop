@@ -138,7 +138,14 @@ class PersonalUxTests(unittest.IsolatedAsyncioTestCase):
         w.on_text(state, "rower")
         w.on_callback(state, "wz:skip")
         w.on_callback(state, "wz:skip")
-        self.assertEqual(state["step"], "price")  # category step skipped: OLX gives no categories
+        self.assertEqual(state["step"], "category")  # OLX: reseller section must be chosen
+        r = w.render(state)
+        cbs = [b.callback for row in r.buttons for b in row]
+        self.assertIn("wz:cat:iphone", cbs)
+        self.assertNotIn("wz:cat:any", cbs)  # no "any category" for OLX
+        self.assertTrue(w.on_callback(state, "wz:cat:any").error)
+        w.on_callback(state, "wz:cat:konsole")
+        self.assertEqual((state["step"], state["draft"]["category"]), ("price", "konsole"))
         state2, _ = w.start(None)
         w.on_text(state2, "Mix")
         state2["draft"]["sources"] = ["olx", "mock"]

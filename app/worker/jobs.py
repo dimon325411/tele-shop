@@ -38,6 +38,11 @@ async def run_check(c: Container, search_id: int) -> dict:
                 await c.repo.update_user(user.id, bot_blocked=True)
             except Exception:  # informational message only
                 log.warning("baseline message failed for search %s", search_id, exc_info=True)
+    if outcome.status in ("ok", "partial"):
+        try:
+            await c.monitoring.market.take_snapshot(search_id)
+        except Exception:  # analytics must never break monitoring
+            log.warning("snapshot failed for search %s", search_id, exc_info=True)
     if outcome.suppressed_cap and c.notifications is not None:
         search = await c.repo.get_search(search_id)
         user = await c.repo.get_user(search.user_id) if search else None

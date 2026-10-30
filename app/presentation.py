@@ -55,9 +55,13 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     stats = getattr(item, "price_stats", None)
     if stats is not None and listing.price is not None:
         diff = stats.diff_percent(listing.price)
+        scope = t("price.scope_condition" if stats.same_condition else "price.scope_all", lang)
+        if getattr(stats, "variant", None):
+            scope += t("price.scope_variant", lang, variant=fmt_variant(stats.variant))
         lines.append(t("notify.price_compare", lang, count=stats.count, median=fmt_price(stats.median),
-                       currency=currency, verdict=t(verdict_key(diff), lang, pct=abs(diff)),
-                       scope=t("price.scope_condition" if stats.same_condition else "price.scope_all", lang)))
+                       currency=currency, verdict=t(verdict_key(diff), lang, pct=abs(diff)), scope=scope))
+        if diff <= -5:
+            lines.append(t("notify.profit", lang, profit=fmt_price(stats.median - listing.price), currency=currency))
     lines.append(t("notify.source", lang, source=esc(DISPLAY_NAMES.get(listing.source, listing.source))))
     location = ", ".join(x for x in (listing.city, listing.region) if x)
     if location:
@@ -87,6 +91,13 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
     row.append(Button(t("btn.notify_settings", lang), callback="settings:open"))
     buttons.append(row)
     return "\n".join(lines), buttons
+
+
+def fmt_variant(variant: str | None) -> str:
+    """'256gb' -> '256 GB', '1tb' -> '1 TB'."""
+    if not variant:
+        return ""
+    return variant[:-2] + " " + variant[-2:].upper()
 
 
 CAPTION_LIMIT = 1024  # Telegram limit for photo captions

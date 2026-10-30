@@ -21,6 +21,8 @@ STEPS = ["name", "sources", "keywords", "alt_keywords", "excluded", "category", 
 TEXT_STEPS = {"name", "keywords", "alt_keywords", "excluded", "price", "city"}
 SKIPPABLE = {"alt_keywords", "excluded", "price", "city"}
 CATEGORIES = ["elektronika", "dom", "moda", "sport", "motoryzacja", "dzieci"]
+# Reseller presets for OLX (app/sources/olx_categories.py); an OLX search must pick one.
+OLX_CATEGORIES = ["iphone", "laptopy", "komputery", "konsole", "karty_graficzne"]
 CONDITIONS = ["any", "new", "used"]
 DELIVERIES = ["any", "shipping", "pickup"]
 
@@ -121,7 +123,8 @@ class SearchWizard:
                 reply.error = True
                 return reply
             return self._advance(state)
-        if step == "category" and action == "cat" and (value in CATEGORIES or value == "any"):
+        if step == "category" and action == "cat" and (value in self._category_options(state)
+                                                       or (value == "any" and not self._olx_selected(state))):
             draft["category"] = None if value == "any" else value
             return self._advance(state)
         if step == "condition" and action == "cond" and value in CONDITIONS:
@@ -135,6 +138,11 @@ class SearchWizard:
                 return Reply("", finished=True)
             if action == "unknown":
                 draft["include_unknown"] = not draft["include_unknown"]
+            elif action == "deal":
+                options = [None, 10, 15, 20, 30]
+                current = draft.get("deal_min_discount")
+                draft["deal_min_discount"] = options[(options.index(current) + 1) % len(options)] \
+                    if current in options else 10
             elif action == "desc":
                 draft["match_description"] = not draft.get("match_description", False)
             elif action == "fuzzy" and state["fuzzy_allowed"]:
@@ -164,6 +172,13 @@ class SearchWizard:
             state["step"] = STEPS[STEPS.index("category") + 1]
         return self.render(state)
 
+    @staticmethod
+    def _olx_selected(state: dict) -> bool:
+        return "olx" in state["draft"]["sources"]
+
+    def _category_options(self, state: dict) -> list[str]:
+        return OLX_CATEGORIES if self._olx_selected(state) else CATEGORIES
+
     def _category_useful(self, state: dict) -> bool:
         """Skip the category step when no selected source provides listing categories (e.g. OLX)."""
         for code in state["draft"]["sources"]:
@@ -180,10 +195,14 @@ class SearchWizard:
             rows += [[Button(t("btn.done", lang), callback="wz:src_done")], _cancel_row(lang)]
             return Reply(t("wizard.sources", lang), rows)
         if step == "category":
-            buttons = [Button(t(f"category.{c}", lang), callback=f"wz:cat:{c}") for c in CATEGORIES]
+            options = self._category_options(state)
+            buttons = [Button(t(f"category.{c}", lang), callback=f"wz:cat:{c}") for c in options]
             rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-            rows += [[Button(t("category.any", lang), callback="wz:cat:any")], _cancel_row(lang)]
-            return Reply(t("wizard.category", lang), rows)
+            if not self._olx_selected(state):
+                rows.append([Button(t("category.any", lang), callback="wz:cat:any")])
+            rows.append(_cancel_row(lang))
+            key = "wizard.category_olx" if self._olx_selected(state) else "wizard.category"
+            return Reply(t(key, lang), rows)
         if step == "condition":
             rows = [[Button(t(f"condition.{c}", lang), callback=f"wz:cond:{c}")] for c in CONDITIONS]
             return Reply(t("wizard.condition", lang), rows + [_cancel_row(lang)])
@@ -210,6 +229,9 @@ class SearchWizard:
                         callback="wz:unknown")]]
         rows.append([Button(t("wizard.btn_desc_on" if draft.get("match_description") else "wizard.btn_desc_off", lang),
                             callback="wz:desc")])
+        deal = draft.get("deal_min_discount")
+        rows.append([Button(t("wizard.btn_deal_on", lang, pct=deal) if deal else t("wizard.btn_deal_off", lang),
+                            callback="wz:deal")])
         if state["fuzzy_allowed"]:
             rows.append([Button(t("wizard.btn_fuzzy_on" if draft["fuzzy"] else "wizard.btn_fuzzy_off", lang),
                                 callback="wz:fuzzy")])

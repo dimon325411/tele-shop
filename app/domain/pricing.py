@@ -20,6 +20,7 @@ class PriceStats:
     p75: Decimal
     count: int
     same_condition: bool = False
+    variant: str | None = None
 
     def diff_percent(self, price: Decimal) -> int:
         """Signed difference of ``price`` vs the median, in whole percent (negative = cheaper)."""

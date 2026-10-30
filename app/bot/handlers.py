@@ -9,7 +9,8 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ErrorEvent, LabeledPrice, LinkPreviewOptions, Message, PreCheckoutQuery
+from aiogram.types import (BufferedInputFile, CallbackQuery, ErrorEvent, LabeledPrice, LinkPreviewOptions, Message,
+                           PreCheckoutQuery)
 
 from app.bot.keyboards import markup
 from app.container import Container
@@ -380,6 +381,88 @@ async def reply_question(message: Message, user, container: Container, ctl: Cont
     await _ai_answer(message, user, lambda: container.advisor.advise_listing(user, listing_id, message.text))
 
 
+# --------------------------------------------------------- reseller tools
+async def send_deals(message: Message, user, container: Container, searches, spread=None) -> None:
+    from app.analytics import Analytics
+
+    text, buttons = await Analytics(container).deals(user, searches, spread)
+    await message.answer(text, reply_markup=markup(buttons) if buttons else None, link_preview_options=NO_PREVIEW)
+
+
+async def send_chart_options(message: Message, user, container: Container, search) -> None:
+    from app.analytics import Analytics
+
+    rows = await Analytics(container).chart_options(user, search)
+    if len(rows) == 1:  # no variants detected -> draw right away
+        await send_chart(message, user, container, search, "all")
+        return
+    await message.answer(t("chart.choose_variant", user.language), reply_markup=markup(rows))
+
+
+async def send_chart(message: Message, user, container: Container, search, variant: str) -> None:
+    from app.analytics import Analytics
+
+    result = await Analytics(container).chart(user, search, variant)
+    if result.png is None:
+        await message.answer(result.text)
+        return
+    await message.answer_photo(BufferedInputFile(result.png, filename="chart.png"), caption=result.caption)
+
+
+@router.message(Command("deals"))
+async def cmd_deals(message: Message, user, container: Container) -> None:
+    searches = await container.searches.list(user)
+    if not searches:
+        await message.answer(t("searches.empty", user.language))
+        return
+    rows = [[Button(s.name, callback=f"dl:{s.id}")] for s in searches]
+    await message.answer(t("deals.choose", user.language), reply_markup=markup(rows))
+
+
+@router.callback_query(F.data.regexp(r"^dl:\d+$"))
+async def cb_deals(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    try:
+        search = await container.searches.get_owned(user, int(cb.data.split(":")[1]))
+    except AccessDenied as exc:
+        await cb.message.answer(t(f"deny.{exc.code}", user.language))
+        return
+    await send_deals(cb.message, user, container, [search])
+
+
+@router.message(Command("chart"))
+async def cmd_chart(message: Message, user, container: Container) -> None:
+    searches = await container.searches.list(user)
+    if not searches:
+        await message.answer(t("searches.empty", user.language))
+        return
+    rows = [[Button(s.name, callback=f"chs:{s.id}")] for s in searches]
+    await message.answer(t("chart.choose", user.language), reply_markup=markup(rows))
+
+
+@router.callback_query(F.data.regexp(r"^chs:\d+$"))
+async def cb_chart_search(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    try:
+        search = await container.searches.get_owned(user, int(cb.data.split(":")[1]))
+    except AccessDenied as exc:
+        await cb.message.answer(t(f"deny.{exc.code}", user.language))
+        return
+    await send_chart_options(cb.message, user, container, search)
+
+
+@router.callback_query(F.data.regexp(r"^ch:\d+:[a-z0-9]+$"))
+async def cb_chart(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    _, sid, variant = cb.data.split(":")
+    try:
+        search = await container.searches.get_owned(user, int(sid))
+    except AccessDenied as exc:
+        await cb.message.answer(t(f"deny.{exc.code}", user.language))
+        return
+    await send_chart(cb.message, user, container, search, variant)
+
+
 # ------------------------------------------------------------------- admin
 @router.message(Command(*ADMIN_COMMANDS))
 async def cmd_admin(message: Message, command: CommandObject, ctl: Controller, bot: Bot) -> None:
@@ -393,8 +476,24 @@ async def cmd_admin(message: Message, command: CommandObject, ctl: Controller, b
 
 # ------------------------------------------------------------------- other
 @router.message(F.text & ~F.text.startswith("/"))
-async def fallback_text(message: Message, ctl: Controller, user) -> None:
-    await send(message, Reply(t("menu.title", user.language), ctl.help(user.language).buttons))
+async def fallback_text(message: Message, ctl: Controller, user, container: Container) -> None:
+    """Free text: "wykres iphone 15 pro", "покажи айфон на котором заработаем 15%"..."""
+    from app.intents import detect
+
+    intent, candidates, pct = detect(message.text, await container.searches.list(user))
+    if intent is None:
+        await send(message, Reply(t("menu.title", user.language), ctl.help(user.language).buttons))
+        return
+    if not candidates:
+        await message.answer(t("intent.no_search", user.language))
+        return
+    if intent == "deals":
+        await send_deals(message, user, container, candidates, pct)
+    elif len(candidates) == 1:
+        await send_chart_options(message, user, container, candidates[0])
+    else:
+        rows = [[Button(s.name, callback=f"chs:{s.id}")] for s in candidates]
+        await message.answer(t("chart.choose", user.language), reply_markup=markup(rows))
 
 
 @router.errors()

@@ -10,3 +10,4 @@ redis>=5,<9
 arq>=0.28,<0.29
 httpx>=0.28,<1
 pydantic>=2.9,<3
+matplotlib>=3.8,<4

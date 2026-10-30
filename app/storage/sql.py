@@ -77,6 +77,7 @@ def _search(r) -> Search:
         price_max=r["price_max"], currency=r["currency"], condition=Condition(r["condition"]), city=r["city"],
         region=r["region"], radius_km=r["radius_km"], delivery=Delivery(r["delivery"]),
         include_unknown=r["include_unknown"], fuzzy=r["fuzzy"], match_description=r["match_description"],
+        deal_min_discount=r["deal_min_discount"],
     )
     return Search(
         id=r["id"], user_id=r["user_id"], name=r["name"], sources=list(r["sources"] or []), criteria=criteria,
@@ -231,6 +232,7 @@ class SqlRepository:
             category=c.category, price_min=c.price_min, price_max=c.price_max, currency=c.currency,
             condition=c.condition, city=c.city, region=c.region, radius_km=c.radius_km, delivery=c.delivery,
             include_unknown=c.include_unknown, fuzzy=c.fuzzy, match_description=c.match_description,
+            deal_min_discount=c.deal_min_discount,
             interval_seconds=search.interval_seconds,
             is_active=search.is_active, next_check_at=search.next_check_at, created_at=search.created_at,
         )
@@ -293,6 +295,18 @@ class SqlRepository:
     async def count_sent_since(self, user_id, since) -> int:
         r = await self._one(q.COUNT_SENT_SINCE, user_id=user_id, since=since)
         return int(r["count"])
+
+    async def list_active_matches(self, search_id, seen_since, limit):
+        rows = await self._exec(q.ACTIVE_MATCHES, search_id=search_id, seen_since=seen_since, limit=limit)
+        return [_listing(r) for r in rows]
+
+    async def upsert_snapshot(self, search_id, day, variant, count, median, p25, p75, min_price):
+        await self._exec(q.UPSERT_SNAPSHOT, search_id=search_id, day=day, variant=variant, count=count,
+                         median=median, p25=p25, p75=p75, min_price=min_price)
+
+    async def list_snapshots(self, search_id, variant, since_day):
+        return [dict(r) for r in await self._exec(q.LIST_SNAPSHOTS, search_id=search_id, variant=variant,
+                                                  since_day=since_day)]
 
     async def find_user_listing_match(self, user_id, listing_id):
         r = await self._one(q.USER_LISTING_MATCH, user_id=user_id, listing_id=listing_id)

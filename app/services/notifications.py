@@ -19,6 +19,7 @@ from app.domain.models import Notification, NotificationStatus, StoredListing, U
 from app.domain.pricing import PriceStats, price_stats
 from app.domain.sellers import is_new_account
 from app.domain.timing import Clock, backoff_seconds, in_quiet_hours, local_day_start_utc, quiet_hours_end, utcnow
+from app.services.market import MarketService
 from app.services.subscriptions import SubscriptionService
 from app.storage.repo import Repository
 
@@ -74,18 +75,11 @@ class NotificationService:
         self.notifier = notifier
         self.settings = settings
         self.clock = clock
+        self.market = MarketService(repo, clock)
 
-    async def comparable_stats(self, search_id: int, listing: StoredListing, now) -> PriceStats | None:
-        """Median price of other listings matched by the same search (same condition when possible)."""
-        since = now - timedelta(days=PRICE_WINDOW_DAYS)
-        if listing.condition:
-            prices = await self.repo.list_comparable_prices(search_id, listing.id, since, listing.currency,
-                                                            listing.condition)
-            stats = price_stats(prices, same_condition=True)
-            if stats is not None:
-                return stats
-        prices = await self.repo.list_comparable_prices(search_id, listing.id, since, listing.currency, None)
-        return price_stats(prices)
+    async def comparable_stats(self, search_id: int, listing: StoredListing, now=None) -> PriceStats | None:
+        """Median of comparable active listings of the same search (same variant/condition, no junk)."""
+        return await self.market.stats_for_listing(search_id, listing)
 
     async def deliver_batch(self) -> DeliveryReport:
         report = DeliveryReport()

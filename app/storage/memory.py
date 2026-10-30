@@ -56,6 +56,7 @@ class MemoryRepository:
         self.payment_event_keys: dict[tuple[str, str], int] = {}
         self.refunds: dict[int, dict] = {}
         self.audit: list[dict] = []
+        self.snapshots: dict[tuple, dict] = {}
         self._tx_lock = asyncio.Lock()
         self._tx_owner: asyncio.Task | None = None
 
@@ -220,6 +221,8 @@ class MemoryRepository:
 
     async def delete_search(self, search_id: int) -> None:
         self.searches.pop(search_id, None)
+        for key in [k for k in self.snapshots if k[0] == search_id]:
+            del self.snapshots[key]
         for key in [k for k in self.matches if k[0] == search_id]:
             del self.matches[key]
         for n in self.notifications.values():
@@ -316,6 +319,20 @@ class MemoryRepository:
     async def count_sent_since(self, user_id, since) -> int:
         return sum(1 for n in self.notifications.values()
                    if n.user_id == user_id and n.status is NotificationStatus.SENT and n.sent_at and n.sent_at >= since)
+
+    async def list_active_matches(self, search_id, seen_since, limit):
+        rows = [self.listings[lid] for (sid, lid) in self.matches
+                if sid == search_id and lid in self.listings and self.listings[lid].last_seen_at >= seen_since]
+        rows.sort(key=lambda l: l.last_seen_at, reverse=True)
+        return _c(rows[:limit])
+
+    async def upsert_snapshot(self, search_id, day, variant, count, median, p25, p75, min_price):
+        self.snapshots[(search_id, day, variant)] = dict(search_id=search_id, day=day, variant=variant, count=count,
+                                                         median=median, p25=p25, p75=p75, min_price=min_price)
+
+    async def list_snapshots(self, search_id, variant, since_day):
+        rows = [r for (sid, day, v), r in self.snapshots.items() if sid == search_id and v == variant and day >= since_day]
+        return _c(sorted(rows, key=lambda r: r["day"]))
 
     async def find_user_listing_match(self, user_id, listing_id):
         hits = [sid for (sid, lid), m in self.matches.items() if lid == listing_id and m["user_id"] == user_id]

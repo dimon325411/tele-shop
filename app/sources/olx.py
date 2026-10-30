@@ -25,6 +25,7 @@ from urllib.parse import urlencode, urlparse
 from app.domain.models import Listing, SearchCriteria
 from app.sources.base import SourceAdapter, SourceCapabilities, SourceLayoutChanged
 from app.sources.http import PoliteFetcher
+from app.sources.olx_categories import PRESETS, OlxCategories
 
 BASE = "https://www.olx.pl/api/v1/offers/"
 MAX_QUERIES_PER_CHECK = 3
@@ -40,8 +41,10 @@ def build_queries(criteria: SearchCriteria) -> list[str]:
     return list(criteria.alt_keywords[:MAX_QUERIES_PER_CHECK])
 
 
-def build_url(query: str, criteria: SearchCriteria, limit: int = PAGE_LIMIT) -> str:
+def build_url(query: str, criteria: SearchCriteria, limit: int = PAGE_LIMIT, category_id: int | None = None) -> str:
     params: dict[str, Any] = {"offset": 0, "limit": limit, "query": query, "sort_by": "created_at:desc"}
+    if category_id is not None:
+        params["category_id"] = category_id
     if criteria.price_min is not None:
         params["filter_float_price:from"] = int(criteria.price_min)
     if criteria.price_max is not None:
@@ -110,7 +113,7 @@ def _delivery(item: dict) -> bool | None:
     return None
 
 
-def parse_offers(payload: str | bytes | dict) -> list[Listing]:
+def parse_offers(payload: str | bytes | dict, categories: "OlxCategories | None" = None) -> list[Listing]:
     """Parse the offers JSON. Raises SourceLayoutChanged when the shape is not recognised."""
     try:
         data = json.loads(payload) if isinstance(payload, (str, bytes)) else payload
@@ -148,7 +151,7 @@ def parse_offers(payload: str | bytes | dict) -> list[Listing]:
             city=_name(location.get("city")) if isinstance(location, dict) else None,
             region=_name(location.get("region")) if isinstance(location, dict) else None,
             condition=_condition(item.get("params")),
-            category=None,  # OLX category ids are not mapped to our categories
+            category=categories.preset_of((item.get("category") or {}).get("id")) if categories else None,
             delivery_available=_delivery(item),
             latitude=mapdata.get("lat") if isinstance(mapdata, dict) else None,
             longitude=mapdata.get("lon") if isinstance(mapdata, dict) else None,
@@ -168,17 +171,25 @@ class OlxPersonalSource(SourceAdapter):
     display_name = "OLX.pl"
     is_test_source = False
 
-    def __init__(self, fetcher: PoliteFetcher) -> None:
+    def __init__(self, fetcher: PoliteFetcher, categories: OlxCategories | None = None) -> None:
         self.fetcher = fetcher
+        self.categories = categories if categories is not None else OlxCategories()
 
     def capabilities(self) -> SourceCapabilities:
-        return SourceCapabilities(keywords=True, price=True, sort_newest=True, listing_category=False,
+        return SourceCapabilities(keywords=True, price=True, sort_newest=True, category=True,
+                                  listing_category=True,
                                   notes=["Tryb prywatny: tylko dla właściciela bota."])
 
     async def fetch(self, criteria: SearchCriteria, limit: int = PAGE_LIMIT) -> list[Listing]:
         seen: dict[str, Listing] = {}
+        category_ids: list[int | None] = self.categories.category_ids(criteria.category) or [None]
         for query in build_queries(criteria):
-            text = await self.fetcher.get(build_url(query, criteria, min(limit, PAGE_LIMIT)))
-            for listing in parse_offers(text):
-                seen.setdefault(listing.external_id, listing)
+            for category_id in category_ids:
+                text = await self.fetcher.get(build_url(query, criteria, min(limit, PAGE_LIMIT), category_id))
+                for listing in parse_offers(text, self.categories):
+                    seen.setdefault(listing.external_id, listing)
         return list(seen.values())
+
+    @staticmethod
+    def presets() -> list[str]:
+        return list(PRESETS)

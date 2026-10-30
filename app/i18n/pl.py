@@ -66,6 +66,8 @@ MESSAGES: dict[str, str] = {
         "/plan — subskrypcja i limity\n/pause, /resume — wstrzymaj/wznów monitoring\n"
         "/delete — usuń wyszukiwanie\n/settings — powiadomienia i godziny ciszy\n"
         "/compare — porównaj oferty z pomocą AI (Pro+)\n"
+        "/deals — okazje: świeże oferty poniżej mediany rynku\n/chart — wykres cen\n"
+        "Możesz też pisać zwykłym tekstem: „wykres iphone 15 pro”, „okazje rtx 3070 15%”.\n"
         "/terms — regulamin\n/privacy — prywatność\n/support — pomoc\n/paysupport — płatności\n\n"
         "<b>Źródła</b>\nObecnie aktywne jest wyłącznie źródło testowe (ogłoszenia oznaczone [TEST]). "
         "Regulaminy OLX.pl i Allegro nie pozwalają na automatyczne zbieranie ich ogłoszeń bez zgody, "
@@ -136,6 +138,12 @@ MESSAGES: dict[str, str] = {
     "wizard.btn_fuzzy_on": "🔤 Tolerancja literówek: włączona",
     "wizard.btn_fuzzy_off": "🔤 Tolerancja literówek: wyłączona",
     "category.any": "Dowolna",
+    "category.iphone": "📱 iPhone",
+    "category.laptopy": "💻 Laptopy",
+    "category.komputery": "🖥 Komputery",
+    "category.konsole": "🎮 Konsole (PS, Xbox)",
+    "category.karty_graficzne": "🧩 Karty graficzne",
+    "wizard.category_olx": "🗂 <b>Krok 6/10.</b> Dział OLX (bot sprawdza tylko wybrany dział):",
     "category.elektronika": "Elektronika",
     "category.dom": "Dom i ogród",
     "category.moda": "Moda",
@@ -257,6 +265,8 @@ MESSAGES: dict[str, str] = {
     "price.typical": "cena typowa",
     "price.scope_condition": " w tym samym stanie",
     "price.scope_all": "",
+    "price.scope_variant": ", {variant}",
+    "notify.profit": "💸 potencjalny zysk ~{profit} {currency} (do mediany, przed kosztami)",
     "notify.source": "🌐 {source}",
     "notify.location": "📍 {location}",
     "notify.condition": "📦 {condition}",
@@ -286,6 +296,25 @@ MESSAGES: dict[str, str] = {
     "ai.error.provider_error": "AI nie odpowiedziało. Spróbuj ponownie później.",
     "ai.error.empty": "AI zwróciło pustą odpowiedź. Spróbuj ponownie.",
     "ai.error.too_few": "Za mało ofert do porównania (potrzebne co najmniej 2 z ostatnich 7 dni).",
+
+    # --- reseller analytics
+    "deals.header": "💸 <b>Okazje ≥{pct}% poniżej mediany</b> — {name} (świeże, ostatnie 7 dni):",
+    "deals.item": "{n}. <b>{title}</b>{variant}\n   {price} {currency} · <b>−{pct}%</b> vs mediana {median} ({count} ofert)\n   💸 zysk ~{profit} {currency} przed kosztami · 📅 {posted}",
+    "deals.footer": "ℹ️ Mediana liczona z aktywnych ofert tego wyszukiwania, w tej samej konfiguracji (GB) i stanie; bez uszkodzonych, zablokowanych i akcesoriów.",
+    "deals.none": "Brak świeżych ofert ≥{pct}% poniżej mediany — {name}. Na rynku teraz: {count} ofert. Spróbuj mniejszego progu, np. „okazje 7%”.",
+    "deals.choose": "Dla którego wyszukiwania pokazać okazje?",
+    "chart.choose": "Wykres dla którego wyszukiwania?",
+    "chart.choose_variant": "Która konfiguracja?",
+    "chart.all_variants": "Wszystkie konfiguracje",
+    "chart.history_sub": "Mediana cen aktywnych ofert OLX, {start}–{end} (ostatnio {count} ofert)",
+    "chart.history_caption": "📈 {name}: mediana {median} PLN, zmiana {change}% w {days} dni.",
+    "chart.now_title": "{name} — rynek teraz",
+    "chart.now_sub": "{count} aktywnych ofert (bez uszkodzonych i akcesoriów)",
+    "chart.now_caption": "📊 {name}: rozkład cen teraz. Historia zbierana od {since} — wykres zmian pojawi się po kilku dniach, a za pół roku pokaże pół roku.",
+    "chart.no_data": "Za mało danych dla „{name}” (potrzeba min. 5 ofert). Poczekaj na kolejne sprawdzenia.",
+    "intent.no_search": "Nie mam wyszukiwania pasującego do pytania. Utwórz je przez /newsearch (dział + słowa, np. „iphone 15 pro”) — dane zaczną się zbierać od razu.",
+    "wizard.btn_deal_off": "💸 Tylko okazje: wyłączone (wszystkie nowe oferty)",
+    "wizard.btn_deal_on": "💸 Tylko okazje: min. {pct}% poniżej mediany",
 
     # --- settings
     "settings.title": "<b>Ustawienia</b>\nGodziny ciszy: {quiet}\nStrefa czasowa: {tz}",
