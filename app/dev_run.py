@@ -23,7 +23,18 @@ from app.logging_setup import setup_logging
 from app.storage.memory import MemoryRepository
 from app.worker import jobs
 
+STATE_FILE = "data/dev_state.pickle"
+
 log = logging.getLogger("dev_run")
+
+
+async def persist_loop(repo: MemoryRepository, every_seconds: int = 60) -> None:
+    while True:
+        await asyncio.sleep(every_seconds)
+        try:
+            repo.dump(STATE_FILE)
+        except Exception:
+            log.exception("could not save demo state")
 
 
 async def scheduler_loop(container, tick_seconds: int) -> None:
@@ -41,6 +52,8 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
             await jobs.deliver_notifications(container)
             if ticks % 10 == 0:
                 await jobs.expire_subscriptions(container)
+            if ticks % 5760 == 1:  # about once a day: drop old data so the state file stays small
+                await jobs.retention(container)
         except Exception:
             log.exception("scheduler tick failed")
         ticks += 1
@@ -52,9 +65,10 @@ async def main() -> None:
     if not settings.personal_mode:
         settings.enabled_sources = ["mock"]  # demo: never touch real marketplaces
     setup_logging(settings.log_level)
-    log.warning("DEMO MODE: in-memory storage, data is lost on restart; sources: %s",
-                "mock + OLX (personal mode)" if settings.personal_mode else "test source only")
-    container = build_container(settings, repo=MemoryRepository(), use_redis=False)
+    repo = MemoryRepository.load(STATE_FILE)
+    log.warning("DEMO MODE: data kept in %s (saved every minute); sources: %s; searches loaded: %s", STATE_FILE,
+                "mock + OLX (personal mode)" if settings.personal_mode else "test source only", len(repo.searches))
+    container = build_container(settings, repo=repo, use_redis=False)
     await container.subs.seed_plans()
     for plan in await container.repo.list_plans(active_only=False):  # demo: mock checks every minute
         if plan.code != "personal":  # real OLX stays at the personal-mode minimum (10 min)
@@ -69,10 +83,14 @@ async def main() -> None:
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command=c, description=d) for c, d in COMMANDS])
     scheduler = asyncio.create_task(scheduler_loop(container, tick_seconds=15))
+    saver = asyncio.create_task(persist_loop(repo))
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         scheduler.cancel()
+        saver.cancel()
+        repo.dump(STATE_FILE)
+        log.warning("demo state saved to %s", STATE_FILE)
         await bot.session.close()
 
 

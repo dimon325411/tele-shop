@@ -60,6 +60,36 @@ class MemoryRepository:
         self._tx_lock = asyncio.Lock()
         self._tx_owner: asyncio.Task | None = None
 
+    # ------------------------------------------------------------ persistence (demo mode)
+    def dump(self, path) -> None:
+        """Atomically save the whole state (used by ``python -m app.dev_run`` so data survives restarts)."""
+        import os
+        import pickle
+        from pathlib import Path
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        state = {k: v for k, v in self.__dict__.items() if not k.startswith("_tx")}
+        tmp = path.with_suffix(".tmp")
+        with open(tmp, "wb") as fh:
+            pickle.dump(state, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, path)
+
+    @classmethod
+    def load(cls, path) -> "MemoryRepository":
+        import pickle
+        from pathlib import Path
+
+        repo = cls()
+        path = Path(path)
+        if path.is_file():
+            with open(path, "rb") as fh:
+                state = pickle.load(fh)  # our own file, written by dump()
+            for key, value in state.items():
+                setattr(repo, key, value)
+            repo.__dict__.setdefault("snapshots", {})
+        return repo
+
     def _next(self, name: str) -> int:
         self._ids[name] = self._ids.get(name, 0) + 1
         return self._ids[name]
