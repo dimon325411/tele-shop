@@ -62,6 +62,10 @@ def render_listing_notification(item: OutgoingListing, now: datetime) -> tuple[s
                        currency=currency, verdict=t(verdict_key(diff), lang, pct=abs(diff)), scope=scope))
         if diff <= -5:
             lines.append(t("notify.profit", lang, profit=fmt_price(stats.median - listing.price), currency=currency))
+        if diff <= -HOT_MARK_PERCENT and item.kind != "price_drop":
+            lines[0] = t("notify.hot", lang, title=esc(listing.title))
+    if listing.ai_note:
+        lines.append(t("notify.ai_note", lang, note=esc(listing.ai_note)))
     lines.append(t("notify.source", lang, source=esc(DISPLAY_NAMES.get(listing.source, listing.source))))
     location = ", ".join(x for x in (listing.city, listing.region) if x)
     if location:
@@ -100,6 +104,7 @@ def fmt_variant(variant: str | None) -> str:
     return variant[:-2] + " " + variant[-2:].upper()
 
 
+HOT_MARK_PERCENT = 10  # "🔥 Okazja" header when the price is at least this much below the median
 CAPTION_LIMIT = 1024  # Telegram limit for photo captions
 
 

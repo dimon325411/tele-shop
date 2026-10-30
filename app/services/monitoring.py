@@ -13,6 +13,7 @@ from app.config import Settings
 from app.domain.matcher import match
 from app.domain.models import NotificationKind, Search, SourceState
 from app.domain.plans import monitored_search_ids
+from app.domain.sellers import is_new_account
 from app.domain.timing import Clock, backoff_seconds, utcnow
 from app.services.locks import Locker
 from app.services.market import MarketService
@@ -24,13 +25,16 @@ from app.storage.repo import Repository
 log = logging.getLogger(__name__)
 
 PRICE_DROP_MIN_FRACTION = Decimal("0.05")  # notify only about drops of at least 5 %
-FETCH_TIMEOUT_SECONDS = 60
+FETCH_TIMEOUT_SECONDS = 120  # a search may need several polite requests (one per OLX category, >=10 s apart)
 LOCK_TTL_SECONDS = 300
 DEFAULT_BLOCK_SECONDS = 3600
 # A listing published before the search existed is "old" even if the source shows it to us only now
 # (sources may return a different subset of results on every request).
 OLD_LISTING_SLACK = timedelta(minutes=30)
 MAX_NEW_NOTIFICATIONS_PER_CHECK = 10
+# Hot-deal mode (search.criteria.deal_min_discount set): besides the discount, a candidate must be fresh
+# and come from a seller whose account is not brand new; then the AI reads the description (if configured).
+HOT_MAX_AGE = timedelta(hours=6)
 
 
 @dataclass
@@ -46,6 +50,8 @@ class CheckOutcome:
     suppressed_old: int = 0  # matched, but published before the search was created
     suppressed_cap: int = 0  # matched and new, but over the per-check notification cap
     suppressed_not_deal: int = 0  # reseller mode: matched and new, but not cheap enough
+    suppressed_not_hot: int = 0  # deal, but stale or from a brand-new seller account
+    suppressed_ai: int = 0  # deal, but the AI found a red flag in the description
     retry_after: float | None = None
     source_status: dict[str, str] = field(default_factory=dict)
 
@@ -60,6 +66,7 @@ class MonitoringService:
         self.settings = settings
         self.clock = clock
         self.market = MarketService(repo, clock)
+        self.screener = None  # AdvisorService (AI pre-check of deal candidates), attached by the container
 
     # ------------------------------------------------------------ scheduling
     async def plan_due_checks(self) -> list[int]:
@@ -174,12 +181,20 @@ class MonitoringService:
                                 outcome.suppressed_old += 1
                                 continue
                             deal_min = search.criteria.deal_min_discount
-                            if deal_min and await self.market.evaluate_deal(search.id, result.listing,
-                                                                            deal_min) is None:
-                                outcome.suppressed_not_deal += 1
-                                continue
+                            deal = None
+                            if deal_min:
+                                deal = await self.market.evaluate_deal(search.id, result.listing, deal_min)
+                                if deal is None:
+                                    outcome.suppressed_not_deal += 1
+                                    continue
+                                if not self._is_hot(result.listing):
+                                    outcome.suppressed_not_hot += 1
+                                    continue
                             if outcome.notifications >= MAX_NEW_NOTIFICATIONS_PER_CHECK:
                                 outcome.suppressed_cap += 1
+                                continue
+                            if deal is not None and not await self._screen(deal, plan):
+                                outcome.suppressed_ai += 1
                                 continue
                             outcome.notifications += int(await self.repo.enqueue_notification(
                                 user.id, result.listing.id, search.id, NotificationKind.NEW.value,
@@ -212,6 +227,27 @@ class MonitoringService:
             outcome.status, outcome.reason = "skipped", "no_usable_source"
         await self.repo.update_search(search.id, **fields)
         return outcome
+
+    def _is_hot(self, listing) -> bool:
+        now = self.clock()
+        posted = listing.posted_at
+        if posted is not None and now - posted > HOT_MAX_AGE:
+            return False  # refreshed/bumped old listing: somebody had hours to buy it already
+        return not is_new_account(listing.seller_created_at, now)
+
+    async def _screen(self, deal, plan) -> bool:
+        """AI pre-check of a deal candidate. False = drop it. No AI / no verdict = keep it."""
+        if self.screener is None or not plan.advanced_filters:
+            return True
+        result = await self.screener.screen_deal(deal.listing, deal.stats.median, deal.discount, deal.stats.count)
+        if result is None:
+            return True
+        icon = {"ok": "✅", "risk": "⚠️", "reject": "⛔"}[result.decision]
+        await self.repo.set_listing_ai_note(deal.listing.id, f"{icon} {result.reason}".strip())
+        if result.decision == "reject":
+            log.info("deal %s rejected by AI: %s", deal.listing.id, result.reason)
+            return False
+        return True
 
     @staticmethod
     def _is_price_drop(old: Decimal | None, new: Decimal | None) -> bool:

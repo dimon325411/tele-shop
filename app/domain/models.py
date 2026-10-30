@@ -73,6 +73,7 @@ class StoredListing(Listing):
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None
     price_changed_at: datetime | None = None
+    ai_note: str | None = None  # short verdict of the local AI pre-check (hot-deal mode)
 
 
 @dataclass

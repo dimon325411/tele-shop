@@ -74,6 +74,8 @@ def build_container(settings: Settings, repo: Any = None, redis: Any = None, use
     from app.services.ai import AdvisorService, build_provider
 
     container.advisor = AdvisorService(repo, build_provider(settings), settings)
+    if settings.ai_screen_deals and container.advisor.enabled:
+        container.monitoring.screener = container.advisor
     log.info("services ready: sources=%s payments=%s personal_mode=%s", registry.enabled_codes,
              settings.payments_mode.value, settings.personal_mode)
     return container

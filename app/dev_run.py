@@ -37,11 +37,21 @@ async def persist_loop(repo: MemoryRepository, every_seconds: int = 60) -> None:
             log.exception("could not save demo state")
 
 
+# Checks run one at a time: real sources allow one request per ~10 s anyway, and a check waiting in the
+# queue of the polite fetcher must not hit the fetch timeout (many searches = long queue).
+PARALLEL_CHECKS = 1
+
+
 async def scheduler_loop(container, tick_seconds: int) -> None:
     running: set[asyncio.Task] = set()
+    gate = asyncio.Semaphore(PARALLEL_CHECKS)
+
+    async def gated_check(search_id: int) -> None:
+        async with gate:
+            await jobs.run_check(container, search_id)
 
     async def enqueue(search_id: int) -> None:
-        task = asyncio.create_task(jobs.run_check(container, search_id))
+        task = asyncio.create_task(gated_check(search_id))
         running.add(task)
         task.add_done_callback(running.discard)
 

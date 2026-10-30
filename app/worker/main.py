@@ -86,7 +86,8 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    max_jobs = 20
-    job_timeout = 180
+    # personal mode reads OLX politely (one request per ~10 s): few parallel jobs, longer timeout
+    max_jobs = 4 if settings.personal_mode else 20
+    job_timeout = 300 if settings.personal_mode else 180
     max_tries = 1  # retries are scheduled through searches.next_check_at (exponential backoff)
     keep_result = 60

@@ -69,6 +69,7 @@ docker compose --profile tests run --rm tests
 | Файл | О чём |
 |---|---|
 | [docs/AI.md](docs/AI.md) | советник AI: оценка объявления, вопросы, сравнение, настройка ключа |
+| [docs/WINDOWS.md](docs/WINDOWS.md) | личный режим 24/7 на Windows-ПК, локальный ИИ (Ollama/Qwen), `/pack` — только горячие предложения |
 | [docs/PERSONAL_MODE.md](docs/PERSONAL_MODE.md) | личный режим с OLX: как работает, риски, включение |
 | [docs/SOURCES.md](docs/SOURCES.md) | правовая проверка OLX / Allegro Lokalnie, что нужно для включения |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | процессы, слои, цикл мониторинга |

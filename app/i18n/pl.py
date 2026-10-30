@@ -67,6 +67,7 @@ MESSAGES: dict[str, str] = {
         "/delete — usuń wyszukiwanie\n/settings — powiadomienia i godziny ciszy\n"
         "/compare — porównaj oferty z pomocą AI (Pro+)\n"
         "/deals — okazje: świeże oferty poniżej mediany rynku\n/chart — wykres cen\n"
+        "/pack — gotowy pakiet wyszukiwań (iPhone, konsole, karty graficzne, MacBooki) tylko z okazjami\n"
         "Możesz też pisać zwykłym tekstem: „wykres iphone 15 pro”, „okazje rtx 3070 15%”.\n"
         "/terms — regulamin\n/privacy — prywatność\n/support — pomoc\n/paysupport — płatności\n\n"
         "<b>Źródła</b>\nObecnie aktywne jest wyłącznie źródło testowe (ogłoszenia oznaczone [TEST]). "
@@ -255,6 +256,8 @@ MESSAGES: dict[str, str] = {
 
     # --- notifications
     "notify.new": "🆕 <b>{title}</b>",
+    "notify.hot": "🔥 <b>Okazja:</b> {title}",
+    "notify.ai_note": "🤖 AI: {note}",
     "notify.price_drop": "📉 <b>Spadek ceny:</b> {title}",
     "notify.price": "💰 {price} {currency}",
     "notify.price_drop_line": "💰 <s>{old} {currency}</s> → <b>{price} {currency}</b>",
@@ -303,6 +306,13 @@ MESSAGES: dict[str, str] = {
     "deals.footer": "ℹ️ Mediana liczona z aktywnych ofert tego wyszukiwania, w tej samej konfiguracji (GB) i stanie; bez uszkodzonych, zablokowanych i akcesoriów.",
     "deals.none": "Brak świeżych ofert ≥{pct}% poniżej mediany — {name}. Na rynku teraz: {count} ofert. Spróbuj mniejszego progu, np. „okazje 7%”.",
     "criteria.deal": "💸 tylko okazje ≥{pct}%",
+    "pack.intro": "📦 <b>Pakiet dla odsprzedaży</b> — utworzę {count} wyszukiwań OLX (używane, sprawdzanie co 15 min):\n{items}\n\n🔥 Powiadomienie tylko o <b>gorącej okazji</b>: ≥{pct}% poniżej mediany tej samej konfiguracji, opublikowane w ciągu ostatnich godzin, konto sprzedawcy nie jest nowe{ai}.\nIstniejące wyszukiwania o tej samej nazwie zostaną pominięte. Pierwsze sprawdzenie tylko zapamięta rynek — mediana potrzebuje min. 5 ofert, więc okazje pojawią się po pewnym czasie.",
+    "pack.ai_on": ", a AI przeczyta opis i odrzuci uszkodzone/zablokowane",
+    "pack.create": "✅ Utwórz pakiet",
+    "pack.done": "✅ Utworzono: {created}.{present}{stopped}",
+    "pack.present": "\nJuż istniały: {names}.",
+    "pack.stopped": "\n⚠️ Zatrzymano: {reason}",
+    "pack.none": "—",
     "deals.choose": "Dla którego wyszukiwania pokazać okazje?",
     "chart.choose": "Wykres dla którego wyszukiwania?",
     "chart.choose_variant": "Która konfiguracja?",

@@ -266,6 +266,9 @@ class SqlRepository:
         r = await self._one(q.GET_LISTING, id=listing_id)
         return _listing(r) if r else None
 
+    async def set_listing_ai_note(self, listing_id: int, note: str | None) -> None:
+        await self._exec(q.SET_LISTING_AI_NOTE, id=listing_id, note=note)
+
     async def add_match(self, search_id, listing_id, user_id, reasons) -> bool:
         rows = await self._exec(q.ADD_MATCH, search_id=search_id, listing_id=listing_id, user_id=user_id,
                                 reasons=json.dumps(reasons, ensure_ascii=False, default=str))

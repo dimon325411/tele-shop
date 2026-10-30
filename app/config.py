@@ -95,13 +95,16 @@ class Settings(BaseModel):
 
     support_contact: str = "@support"
 
-    # AI purchase advisor (app/services/ai.py): disabled | anthropic | openai_compat
+    # AI purchase advisor (app/services/ai.py): disabled | ollama | anthropic | openai_compat
     ai_provider: str = "disabled"
     ai_api_key: str = ""
     ai_model: str = ""
     ai_base_url: str = ""
     ai_daily_limit: int = 30
     ai_max_tokens: int = 800
+    ai_vision: bool = False  # send the listing photo to the model (only for vision models, e.g. qwen2.5vl)
+    # Hot-deal mode: the AI reads the description of every deal candidate before it is sent (local model = free).
+    ai_screen_deals: bool = True
 
     @field_validator("admin_ids", mode="before")
     @classmethod
@@ -114,7 +117,7 @@ class Settings(BaseModel):
         return [str(v).lower() for v in _split_csv(value)]
 
     @field_validator("payments_live_confirmed", "crypto_enabled", "notify_on_first_run", "personal_mode",
-                     mode="before")
+                     "ai_vision", "ai_screen_deals", mode="before")
     @classmethod
     def _bool(cls, value: object) -> bool:
         if isinstance(value, bool):
@@ -137,6 +140,8 @@ class Settings(BaseModel):
             return bool(self.ai_api_key)
         if self.ai_provider == "openai_compat":
             return bool(self.ai_base_url and self.ai_model)
+        if self.ai_provider == "ollama":
+            return bool(self.ai_model)
         return False
 
     @property

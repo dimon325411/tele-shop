@@ -437,6 +437,29 @@ async def cb_deals(cb: CallbackQuery, user, container: Container) -> None:
     await send_deals(cb.message, user, container, [search])
 
 
+@router.message(Command("pack"))
+async def cmd_pack(message: Message, user, container: Container) -> None:
+    from app.domain.reseller_pack import DEAL_PERCENT, PACK
+
+    lang = user.language
+    items = "\n".join(f"• {esc(i.name)}" for i in PACK)
+    ai = t("pack.ai_on", lang) if container.monitoring.screener is not None else ""
+    await message.answer(t("pack.intro", lang, count=len(PACK), items=items, pct=DEAL_PERCENT, ai=ai),
+                         reply_markup=markup([[Button(t("pack.create", lang), callback="pack:go")]]))
+
+
+@router.callback_query(F.data == "pack:go")
+async def cb_pack(cb: CallbackQuery, user, container: Container) -> None:
+    await cb.answer()
+    lang = user.language
+    created, present, error = await container.searches.create_pack(user)
+    await cb.message.edit_reply_markup(reply_markup=None)
+    await cb.message.answer(t(
+        "pack.done", lang, created=esc(", ".join(created)) or t("pack.none", lang),
+        present=t("pack.present", lang, names=esc(", ".join(present))) if present else "",
+        stopped=t("pack.stopped", lang, reason=t(f"deny.{error.code}", lang, **error.params)) if error else ""))
+
+
 @router.message(Command("chart"))
 async def cmd_chart(message: Message, user, container: Container) -> None:
     searches = await container.searches.list(user)

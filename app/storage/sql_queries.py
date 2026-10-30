@@ -100,7 +100,7 @@ LISTING_COLUMNS = (
     "id, source, external_id, url, title, description, price, previous_price, currency, city, region, condition, "
     "category, delivery_available, latitude, longitude, posted_at, seller_created_at, seller_is_business, photo_url, is_test, "
     "first_seen_at, last_seen_at, "
-    "price_changed_at"
+    "price_changed_at, ai_note"
 )
 UPSERT_LISTING = f"""
 WITH old AS (
@@ -139,6 +139,7 @@ WITH old AS (
 SELECT ins.*, (SELECT price FROM old) AS old_price FROM ins
 """
 GET_LISTING = f"SELECT {LISTING_COLUMNS} FROM listings WHERE id = :id"
+SET_LISTING_AI_NOTE = "UPDATE listings SET ai_note = :note WHERE id = :id"
 
 ADD_MATCH = """
 INSERT INTO match_results (search_id, listing_id, user_id, reasons)

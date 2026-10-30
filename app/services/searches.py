@@ -90,6 +90,24 @@ class SearchService:
                             interval_seconds=interval, is_active=True, next_check_at=now, created_at=now)
             return await self.repo.create_search(search)
 
+    async def create_pack(self, user: User) -> tuple[list[str], list[str], AccessDenied | None]:
+        """Create the reseller pack. Returns (created, already_present, error that stopped it)."""
+        from app.domain.reseller_pack import PACK, draft_kwargs
+
+        existing = {s.name.lower() for s in await self.repo.list_user_searches(user.id)}
+        created: list[str] = []
+        present: list[str] = []
+        for item in PACK:
+            if item.name.lower() in existing:
+                present.append(item.name)
+                continue
+            try:
+                await self.create(user, SearchDraft(**draft_kwargs(item)))
+            except AccessDenied as exc:  # plan limit, OLX disabled, ...
+                return created, present, exc
+            created.append(item.name)
+        return created, present, None
+
     async def list(self, user: User) -> list[Search]:
         return await self.repo.list_user_searches(user.id)
 
