@@ -10,3 +10,4 @@ tests/fixtures/olx_live_sample.json
 .DS_Store
 .venv/
 data/
+_to_delete/
