@@ -101,7 +101,7 @@ class Settings(BaseModel):
     ai_model: str = ""
     ai_base_url: str = ""
     ai_daily_limit: int = 30
-    ai_max_tokens: int = 800
+    ai_max_tokens: int = 1500
     ai_vision: bool = False  # send the listing photo to the model (only for vision models, e.g. qwen2.5vl)
     # Hot-deal mode: the AI reads the description of every deal candidate before it is sent (local model = free).
     ai_screen_deals: bool = True

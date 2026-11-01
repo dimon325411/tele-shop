@@ -7,7 +7,7 @@ from app.config import PaymentsMode, Settings
 from app.domain.models import Listing
 from app.presentation import render_listing_notification
 from app.services.ai import (AdvisorService, AIUnavailable, AnthropicProvider, OpenAICompatProvider, SYSTEM_PROMPT,
-                             build_provider)
+                             build_provider, trim_incomplete)
 from tests.unit.helpers import App, T0, draft
 
 
@@ -159,3 +159,27 @@ class AdvisorTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrimTests(unittest.IsolatedAsyncioTestCase):
+    def test_trim_drops_unfinished_sentence(self):
+        text = "Werdykt: zależy od odbioru.\nPlusy: konto z 2018 r.\nUwaga:\n- Cena jest wyraźnie niska. Częściow"
+        out = trim_incomplete(text)
+        self.assertTrue(out.endswith(" …"))
+        self.assertNotIn("Częściow", out)
+        self.assertIn("Cena jest wyraźnie niska.", out)
+
+    async def test_anthropic_cut_answer_is_trimmed(self):
+        tr = FakeTransport(data={"content": [{"type": "text", "text": "Werdykt: warto. Plusy: konto stare. Uwaga: cena nis"}],
+                                 "stop_reason": "max_tokens", "usage": {}})
+        reply = await AnthropicProvider("sk-test", "m", 50, transport=tr).complete("s", "t")
+        self.assertEqual(reply.text, "Werdykt: warto. Plusy: konto stare. …")
+
+    async def test_openai_cut_answer_is_trimmed(self):
+        tr = FakeTransport(data={"choices": [{"message": {"content": "Werdykt: warto.\nUwaga: cena nis"},
+                                              "finish_reason": "length"}]})
+        reply = await OpenAICompatProvider("http://x/v1", "m", transport=tr).complete("s", "t")
+        self.assertEqual(reply.text, "Werdykt: warto. …")
+
+    def test_prompt_asks_for_short_answer(self):
+        self.assertIn("700 znaków", SYSTEM_PROMPT)

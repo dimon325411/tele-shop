@@ -46,9 +46,13 @@ Zasady:
 - Opieraj się na podanych faktach: cena, mediana cen podobnych ogłoszeń, stan, data publikacji, wiek konta
   sprzedawcy, opis i zdjęcie. Gdy czegoś nie wiesz — powiedz to wprost, nie zgaduj modeli ani parametrów.
 - Wskaż sygnały ryzyka oszustwa (nowe konto, cena dużo poniżej mediany, prośba o przedpłatę lub kontakt poza OLX).
-- Podaj konkretną rekomendację (warto / raczej nie / zależy od…) oraz co sprawdzić przy odbiorze
-  i jakie pytania zadać sprzedawcy.
-- Odpowiadaj zwięźle (do ~1200 znaków), zwykłym tekstem bez HTML i bez Markdown-tabel.
+- Odpowiadaj KRÓTKO: maksymalnie ok. 700 znaków, zwykłym tekstem bez HTML, Markdown i tabel.
+  Trzymaj się dokładnie tego układu (każdy punkt to jedno krótkie zdanie):
+  Werdykt: warto / raczej nie / zależy od … — jedno zdanie.
+  Plusy: 1–2 najważniejsze fakty.
+  Uwaga: maks. 3 punkty zaczynające się od "- ".
+  Sprawdź przy odbiorze: maks. 3 punkty zaczynające się od "- ".
+- Nie powtarzaj danych z ogłoszenia, których użytkownik i tak widzi (tytuł, pełny opis).
 - Odpowiadaj w języku pytania użytkownika; jeśli pytania nie ma — po polsku.
 - Nie jesteś rzeczoznawcą: przy drogich przedmiotach zasugeruj sprawdzenie na miejscu."""
 
@@ -126,6 +130,15 @@ async def httpx_post(url: str, headers: dict, body: dict, timeout: float) -> tup
         return resp.status_code, data
 
 
+def trim_incomplete(text: str) -> str:
+    """The model hit the token limit: drop the unfinished last sentence/line instead of showing a cut word."""
+    text = text.rstrip()
+    cut = max(text.rfind("\n"), *(text.rfind(m) for m in (". ", "! ", "? ")))
+    if cut > len(text) // 3:
+        text = text[:cut + 1].rstrip()
+    return text + " …"
+
+
 class AIProvider(Protocol):
     async def complete(self, system: str, text: str, image_url: str | None = None) -> AIReply: ...
 
@@ -153,6 +166,8 @@ class AnthropicProvider:
         answer = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text").strip()
         if not answer:
             raise AIUnavailable("empty")
+        if data.get("stop_reason") == "max_tokens":
+            answer = trim_incomplete(answer)
         usage = data.get("usage") or {}
         return AIReply(answer, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
 
@@ -194,6 +209,8 @@ class OpenAICompatProvider:
             raise AIUnavailable("provider_error")
         try:
             answer = strip_thinking(data["choices"][0]["message"]["content"] or "")
+            if answer and data["choices"][0].get("finish_reason") == "length":
+                answer = trim_incomplete(answer)
         except (KeyError, IndexError, AttributeError, TypeError) as exc:
             raise AIUnavailable("empty") from exc
         if not answer:
