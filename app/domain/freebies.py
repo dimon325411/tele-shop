@@ -31,6 +31,8 @@ FREE_JUNK = [
     "przyjme", "przygarne", "szukam", "potrzebuje", "kupie", "zamienie",
     "kot", "kotka", "kotek", "kotki", "koty", "pies", "psa", "piesek", "szczeniak", "szczeniaki", "krolik", "chomik",
     "swinka", "papuga", "rybki", "kury", "zwierze", "zwierzeta",
+    "suka", "suki", "suczka", "suczki", "psy", "pieski", "szczenieta", "szczeniaczki", "kocieta", "kociaki",
+    "gupik", "gupiki", "zolw", "kroliki", "chomiki", "kurczaki", "adopcja", "adopcji",
     "gruz", "ziemia", "ziemie", "piasek", "kamienie", "obornik", "galezie", "trawa", "jedzenie",
     "zywnosc", "chleb", "leki", "ubrania", "odziez", "smieci", "makulatura", "zlom", "do naprawy", "na czesci",
     "uszkodzony", "uszkodzona", "zepsuty", "zepsuta", "nie dziala",
