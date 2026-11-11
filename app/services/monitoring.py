@@ -180,7 +180,7 @@ class MonitoringService:
                             if deal_mode:
                                 # freshness (not "seen after the search was created") decides: a 3-hour-old
                                 # bargain found by the very first check is still worth a message
-                                deal_candidates.append(result.listing)
+                                deal_candidates.append((result.listing, NotificationKind.NEW.value, f"new:{result.listing.id}"))
                                 continue
                             if not notify_new:
                                 continue
@@ -196,6 +196,10 @@ class MonitoringService:
                                 user.id, result.listing.id, search.id, NotificationKind.NEW.value,
                                 f"new:{result.listing.id}", result.listing.price, self.clock()))
                         elif price_drops and self._is_price_drop(result.old_price, result.listing.price):
+                            if deal_mode:
+                                deal_candidates.append((result.listing, NotificationKind.PRICE_DROP.value,
+                                                        f"price_drop:{result.listing.id}:{result.listing.price}"))
+                                continue
                             outcome.notifications += int(await self.repo.enqueue_notification(
                                 user.id, result.listing.id, search.id, NotificationKind.PRICE_DROP.value,
                                 f"price_drop:{result.listing.id}:{result.listing.price}", result.listing.price,
@@ -207,7 +211,7 @@ class MonitoringService:
             await self.repo.add_run(search.id, source, started, self.clock(), status, fetched, new, matched,
                                     (error or None) and str(error)[:500])
 
-        for listing in deal_candidates:
+        for listing, kind, dedup_key in deal_candidates:
             if not self._is_hot(listing):
                 outcome.suppressed_not_hot += 1
                 continue
@@ -225,7 +229,7 @@ class MonitoringService:
                 outcome.suppressed_ai += 1
                 continue
             outcome.notifications += int(await self.repo.enqueue_notification(
-                user.id, listing.id, search.id, NotificationKind.NEW.value, f"new:{listing.id}", listing.price,
+                user.id, listing.id, search.id, kind, dedup_key, listing.price,
                 self.clock()))
 
         finished = self.clock()

@@ -109,31 +109,34 @@ async def daily_digest(c: Container) -> int:
     s = c.settings
     if not s.personal_mode or s.digest_hour < 0 or c.notifications is None:
         return 0
-    sent_days: dict = getattr(c.repo, "digest_sent", None)
-    if sent_days is None:  # kept on the repository object -> saved with the demo state file
-        sent_days = {}
-        c.repo.digest_sent = sent_days
     now = getattr(c.monitoring, "clock", utcnow)()
     service = DigestService(c.repo, c.monitoring.market)
     sent = 0
     for telegram_id in s.admin_ids:
         user = await c.repo.get_user_by_telegram_id(telegram_id)
-        if user is None or user.bot_blocked:
+        if user is None or user.bot_blocked or user.is_suspended or user.deleted_at:
             continue
         local: datetime = now.astimezone(ZoneInfo(user.timezone))
         day = local.date().isoformat()
-        if local.hour < s.digest_hour or sent_days.get(user.id) == day:
+        if local.hour < s.digest_hour:
             continue
-        sent_days[user.id] = day  # mark first: never send twice even if sending fails
-        try:
-            text = await service.build(user, now)
-            if text:
-                await c.notifications.notifier.send_text(user.telegram_id, text)
-                sent += 1
-        except NotifierBlocked:
-            await c.repo.update_user(user.id, bot_blocked=True)
-        except Exception:
-            log.warning("daily digest failed for user %s", user.id, exc_info=True)
+        async with c.locker.hold(f'digest:{user.id}', 300) as acquired:
+            if not acquired:
+                continue
+            state = await c.repo.get_job_state(f'digest:{user.id}')
+            legacy = getattr(c.repo, 'digest_sent', {}).get(user.id)
+            if (state and state.get('day') == day) or legacy == day:
+                continue
+            try:
+                text = await service.build(user, now)
+                if text:
+                    await c.notifications.notifier.send_text(user.telegram_id, text)
+                    await c.repo.save_job_state(f'digest:{user.id}', {'day': day}, now)
+                    sent += 1
+            except NotifierBlocked:
+                await c.repo.update_user(user.id, bot_blocked=True)
+            except Exception:
+                log.warning('daily digest failed for user %s', user.id, exc_info=True)
     return sent
 
 
@@ -148,4 +151,4 @@ async def free_scan(c: Container) -> int:
     if service is None:
         service = FreebieService(c.repo, c.registry)
         c._freebies = service  # keeps the price cache between runs
-    return (await service.scan(users, c.notifications.notifier)).sent
+    return (await service.scan(users)).queued

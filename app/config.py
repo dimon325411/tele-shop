@@ -63,6 +63,8 @@ class Settings(BaseModel):
     # Personal mode: the bot serves ONLY the admins (ADMIN_IDS), sells nothing, and may read
     # OLX public search results at a low rate (docs/PERSONAL_MODE.md). Commercial mode when false.
     personal_mode: bool = False
+    # python -m app.dev_run keeps data in: "file" (data/dev_state.pickle) or "postgres" (DATABASE_URL)
+    storage: str = "file"
     source_min_request_interval_seconds: float = 10.0
     source_timeout_seconds: float = 15.0
 

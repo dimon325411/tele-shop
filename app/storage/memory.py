@@ -57,6 +57,7 @@ class MemoryRepository:
         self.refunds: dict[int, dict] = {}
         self.audit: list[dict] = []
         self.snapshots: dict[tuple, dict] = {}
+        self.job_state: dict[str, dict] = {}
         self._tx_lock = asyncio.Lock()
         self._tx_owner: asyncio.Task | None = None
 
@@ -88,6 +89,15 @@ class MemoryRepository:
             for key, value in state.items():
                 setattr(repo, key, value)
             repo.__dict__.setdefault("snapshots", {})
+            repo.__dict__.setdefault("job_state", {})
+            for user_id, day in getattr(repo, 'digest_sent', {}).items():
+                repo.job_state.setdefault(f'digest:{user_id}', {'day': day})
+            for external_id, seen_at in getattr(repo, 'free_seen', {}).items():
+                until = datetime.fromisoformat(seen_at) + timedelta(days=3)
+                repo.job_state.setdefault(f'free:{external_id}', {'until': until.isoformat()})
+            for notification in repo.notifications.values():
+                if not hasattr(notification, 'payload'):
+                    notification.payload = {}
         return repo
 
     def _next(self, name: str) -> int:
@@ -312,13 +322,21 @@ class MemoryRepository:
                               status=status, fetched=fetched, new_listings=new_listings, matched=matched, error=error))
 
     # --------------------------------------------------------- notifications
-    async def enqueue_notification(self, user_id, listing_id, search_id, kind, dedup_key, price, next_attempt_at) -> bool:
+    async def get_job_state(self, key):
+        return _c(self.job_state.get(key))
+
+    async def save_job_state(self, key, value, now):
+        self.job_state[key] = _c(value)
+
+    async def enqueue_notification(self, user_id, listing_id, search_id, kind, dedup_key, price, next_attempt_at,
+                                   payload=None) -> bool:
         await asyncio.sleep(0)
         if (user_id, dedup_key) in self.notification_keys:
             return False
         n = Notification(id=self._next("notification"), user_id=user_id, listing_id=listing_id, search_id=search_id,
                          kind=NotificationKind(kind), dedup_key=dedup_key, status=NotificationStatus.PENDING,
-                         next_attempt_at=next_attempt_at, price_at_notify=price, created_at=next_attempt_at)
+                         next_attempt_at=next_attempt_at, price_at_notify=price, created_at=next_attempt_at,
+                         payload=_c(payload or {}))
         self.notifications[n.id] = n
         self.notification_keys[(user_id, dedup_key)] = n.id
         return True

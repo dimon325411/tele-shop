@@ -158,6 +158,29 @@ def fmt_variant(variant: str | None) -> str:
     """'256gb' -> '256 GB', '1tb' -> '1 TB'."""
     if not variant:
         return ""
+    if '__' in variant:
+        return ' · '.join(t('condition.' + x) if x in {'new', 'used'} else fmt_variant(x)
+                          for x in variant.split('__'))
+    if variant == 'all':
+        return t('stats.all_variants')
+    if variant == 'unknown':
+        return t('stats.unknown_config')
+    if '_' in variant or variant.startswith('vram'):
+        def part(value):
+            if value.startswith('ram'):
+                return fmt_variant(value[3:]) + ' RAM'
+            if value.startswith('hdd'):
+                return fmt_variant(value[3:]) + ' HDD'
+            if value.startswith('disk'):
+                return fmt_variant(value[4:]) + ' (' + t('stats.disk') + ')'
+            if value.startswith('ssd'):
+                return fmt_variant(value[3:]) + ' SSD'
+            if value.startswith('vram'):
+                return fmt_variant(value[4:]) + ' VRAM'
+            return value.upper()
+        return ' / '.join(part(x) for x in variant.split('_'))
+    if not variant.endswith(("gb", "tb")):
+        return variant.upper()
     return variant[:-2] + " " + variant[-2:].upper()
 
 

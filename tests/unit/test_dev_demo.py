@@ -10,6 +10,39 @@ from tests.unit.test_controller_jobs import container
 
 
 class DemoFlowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_slow_check_is_not_queued_again_and_is_cancelled_on_shutdown(self):
+        from unittest.mock import patch
+        from app.dev_run import scheduler_loop
+
+        app = await App().setup()
+        started, ended = asyncio.Event(), asyncio.Event()
+        calls = []
+
+        async def slow_check(c, sid):
+            calls.append(sid)
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                ended.set()
+
+        ticks = 0
+        async def tick(c, enqueue):
+            nonlocal ticks
+            await enqueue(1)
+            ticks += 1
+
+        with patch('app.dev_run.jobs.schedule_tick', tick), patch('app.dev_run.jobs.run_check', slow_check):
+            task = asyncio.create_task(scheduler_loop(container(app), .001))
+            await asyncio.wait_for(started.wait(), 1)
+            while ticks < 3:
+                await asyncio.sleep(.001)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            await asyncio.sleep(0)
+        self.assertEqual(calls, [1])
+        self.assertTrue(ended.is_set())
+
     async def test_growing_mock_source_triggers_notification(self):
         app = await App(mock=MockSource(grow=True)).setup()
         await app.repo.update_plan("trial", min_interval_seconds=60)

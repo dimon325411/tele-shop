@@ -155,14 +155,20 @@ VALUES (:search_id, :source, :started_at, :finished_at, :status, :fetched, :new_
 
 NOTIFICATION_COLUMNS = (
     "id, user_id, listing_id, search_id, kind, dedup_key, status, attempts, next_attempt_at, last_error, "
-    "price_at_notify, created_at, sent_at"
+    "price_at_notify, created_at, sent_at, payload"
 )
 ENQUEUE_NOTIFICATION = """
 INSERT INTO notifications (user_id, listing_id, search_id, kind, dedup_key, status, next_attempt_at,
-                           price_at_notify, created_at)
-VALUES (:user_id, :listing_id, :search_id, :kind, :dedup_key, 'pending', :next_attempt_at, :price, :next_attempt_at)
+                           price_at_notify, created_at, payload)
+VALUES (:user_id, :listing_id, :search_id, :kind, :dedup_key, 'pending', :next_attempt_at, :price, :next_attempt_at,
+        CAST(:payload AS jsonb))
 ON CONFLICT (user_id, dedup_key) DO NOTHING
 RETURNING id
+"""
+GET_JOB_STATE = "SELECT value FROM job_state WHERE key = :key"
+SAVE_JOB_STATE = """
+INSERT INTO job_state (key, value, updated_at) VALUES (:key, CAST(:value AS jsonb), :now)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
 """
 CLAIM_NOTIFICATIONS = f"""
 UPDATE notifications SET status = 'sending', claimed_at = :now

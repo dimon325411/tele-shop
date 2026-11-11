@@ -69,6 +69,27 @@ class HotDealTests(unittest.IsolatedAsyncioTestCase):
         out = await self.check()
         self.assertEqual((out.notifications, out.suppressed_ai), (1, 0))
 
+    async def test_price_drop_rechecks_ai_rejection(self):
+        self.app.monitoring.screener = FakeScreener({'locked': ScreenResult('reject', 'iCloud')})
+        self.app.mock.publish(phone('locked', 3400, posted=self.app.clock()))
+        self.assertEqual((await self.check()).suppressed_ai, 1)
+        self.app.mock.publish(phone('locked', 3000, posted=self.app.clock()))
+        out = await self.check()
+        self.assertEqual((out.notifications, out.suppressed_ai), (0, 1))
+
+    async def test_price_drop_still_requires_hot_deal_threshold(self):
+        self.app.mock.publish(phone('expensive', 5000, posted=self.app.clock()))
+        await self.check()
+        self.app.mock.publish(phone('expensive', 4500, posted=self.app.clock()))
+        self.assertEqual((await self.check()).notifications, 0)
+
+    async def test_accepted_price_drop_keeps_its_kind(self):
+        self.app.mock.publish(phone('good', 3400, posted=self.app.clock()))
+        await self.check()
+        self.app.mock.publish(phone('good', 3000, posted=self.app.clock()))
+        self.assertEqual((await self.check()).notifications, 1)
+        self.assertEqual(list(self.app.repo.notifications.values())[-1].kind.value, 'price_drop')
+
     async def test_ai_not_called_outside_deal_mode(self):
         screener = FakeScreener()
         self.app.monitoring.screener = screener

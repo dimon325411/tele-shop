@@ -86,8 +86,8 @@ def main(dsn: str) -> None:
 
     # notification dedup + claim
     enq = prep("enq", q.ENQUEUE_NOTIFICATION)
-    e = "EXECUTE enq(1, 1, NULL, 'new', 'new:1', '2026-10-24 10:00+00', 100);\n"
-    out = psql(dsn, enq + e + e + "EXECUTE enq(2, 1, NULL, 'new', 'new:1', '2026-10-24 10:00+00', 100);\n"
+    e = "EXECUTE enq(1, 1, NULL, 'new', 'new:1', '2026-10-24 10:00+00', 100, '{}');\n"
+    out = psql(dsn, enq + e + e + "EXECUTE enq(2, 1, NULL, 'new', 'new:1', '2026-10-24 10:00+00', 100, '{}');\n"
                "SELECT count(*) FROM notifications;")
     check("enqueue dedup per user (ids, then count)", out.split("\n")[-1], "2")
     claim = prep("cl", q.CLAIM_NOTIFICATIONS)

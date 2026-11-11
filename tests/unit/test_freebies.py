@@ -13,7 +13,8 @@ from app.sources.olx import OlxPersonalSource
 from app.sources.olx_categories import OlxCategories
 from app.sources.registry import SourceRegistry
 from app.storage.memory import MemoryRepository
-from tests.unit.helpers import T0, FakeClock, FakeNotifier
+from tests.unit.helpers import T0, FakeClock, FakeNotifier, App
+from app.config import Settings
 
 KRK = {"lat": 50.06, "lon": 19.94}
 WAW = {"lat": 52.23, "lon": 21.01}
@@ -64,7 +65,12 @@ class ScanTests(unittest.IsolatedAsyncioTestCase):
         self.clock = FakeClock(T0 + timedelta(hours=1))
         self.service = FreebieService(self.repo, SourceRegistry({"olx": source}, ["olx"]), self.clock)
         self.notifier = FakeNotifier()
-        self.owner = User(id=1, telegram_id=10, deal_city="krakow", deal_radius_km=30, free_alerts=True)
+        self.app = await App(settings=Settings(personal_mode=True, admin_ids=[10]), repo=self.repo).setup()
+        self.app.clock.now = self.clock()
+        self.app.notifications.notifier = self.notifier
+        user = await self.app.user(10)
+        await self.repo.update_user(user.id, deal_city='krakow', deal_radius_km=30, free_alerts=True)
+        self.owner = await self.repo.get_user(user.id)
 
     async def test_only_valuable_fresh_nearby_items_are_sent(self):
         self.payloads["oddam"] = [
@@ -80,14 +86,15 @@ class ScanTests(unittest.IsolatedAsyncioTestCase):
         self.payloads["regal ikea billy"] = [offer(200 + i, "Regał IKEA Billy biały", price=p)
                                              for i, p in enumerate([60, 80, 90, 70, 100])]
         out = await self.service.scan([self.owner], self.notifier)
-        self.assertEqual((out.in_area, out.priced, out.sent, out.too_cheap), (2, 2, 1, 1))
+        self.assertEqual((out.in_area, out.priced, out.queued, out.too_cheap), (2, 2, 1, 1))
+        self.assertEqual((await self.app.notifications.deliver_batch()).sent, 1)
         sent = self.notifier.sent[0]
         self.assertEqual((sent.kind, sent.listing.external_id), ("free", "1"))
         self.assertEqual(int(sent.price_stats.median), 460)  # (450 + 470) / 2
         # nothing is examined twice (each offer costs one polite request at most once)
         self.calls.clear()
         out = await self.service.scan([self.owner], self.notifier)
-        self.assertEqual((out.priced, out.sent), (0, 0))
+        self.assertEqual((out.priced, out.queued), (0, 0))
         self.assertEqual(self.calls, ["oddam", "za darmo"])
 
     async def test_needs_area_and_option(self):
@@ -101,7 +108,7 @@ class ScanTests(unittest.IsolatedAsyncioTestCase):
         self.payloads["oddam"] = [offer(1, "Oddam piękną komodę retro", free=True)]
         self.payloads["piekna komode retro"] = [offer(9, "Komoda retro", price=300)]
         out = await self.service.scan([self.owner], self.notifier)
-        self.assertEqual((out.no_estimate, out.sent), (1, 0))
+        self.assertEqual((out.no_estimate, out.queued), (1, 0))
 
     def test_render(self):
         from decimal import Decimal as D

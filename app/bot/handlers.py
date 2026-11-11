@@ -605,7 +605,7 @@ async def cb_chart_search(cb: CallbackQuery, user, container: Container) -> None
     await send_chart_options(cb.message, user, container, search)
 
 
-@router.callback_query(F.data.regexp(r"^ch:\d+:[a-z0-9]+$"))
+@router.callback_query(F.data.regexp(r"^ch:\d+:[a-z0-9_]+$"))
 async def cb_chart(cb: CallbackQuery, user, container: Container) -> None:
     await cb.answer()
     _, sid, variant = cb.data.split(":")

@@ -1,7 +1,7 @@
 """Single-process DEMO mode: ``python -m app.dev_run``.
 
-No PostgreSQL / Redis / Docker needed: in-memory storage, in-process scheduler, mock source.
-All data is lost on restart — use it only to try the bot. Production uses docker-compose.
+Single-process scheduler with persisted file or PostgreSQL storage.
+Production multi-process deployment uses docker-compose.
 """
 
 from __future__ import annotations
@@ -67,11 +67,17 @@ def save_on_signals(repo: MemoryRepository) -> None:
 
 async def scheduler_loop(container, tick_seconds: int) -> None:
     running: set[asyncio.Task] = set()
+    pending_searches: set[int] = set()
     gate = asyncio.Semaphore(PARALLEL_CHECKS)
 
     async def gated_check(search_id: int) -> None:
-        async with gate:
-            await jobs.run_check(container, search_id)
+        try:
+            async with gate:
+                await jobs.run_check(container, search_id)
+        except Exception:
+            log.exception('search check failed: %s', search_id)
+        finally:
+            pending_searches.discard(search_id)
 
     async def gated(coro) -> None:
         async with gate:
@@ -81,29 +87,37 @@ async def scheduler_loop(container, tick_seconds: int) -> None:
                 log.exception("background job failed")
 
     async def enqueue(search_id: int) -> None:
+        if search_id in pending_searches:
+            return
+        pending_searches.add(search_id)
         task = asyncio.create_task(gated_check(search_id))
         running.add(task)
         task.add_done_callback(running.discard)
 
-    ticks = 0
-    while True:
-        try:
-            await jobs.schedule_tick(container, enqueue)
-            await jobs.deliver_notifications(container)
-            if ticks % 10 == 0:
-                await jobs.expire_subscriptions(container)
-            if ticks % 20 == 5:  # every ~5 minutes: evening summary when it is due
-                await jobs.daily_digest(container)
-            if ticks % 60 == 7:  # every ~15 minutes: "Oddam za darmo" (one at a time with the checks)
-                task = asyncio.create_task(gated(jobs.free_scan(container)))
-                running.add(task)
-                task.add_done_callback(running.discard)
-            if ticks % 5760 == 1:  # about once a day: drop old data so the state file stays small
-                await jobs.retention(container)
-        except Exception:
-            log.exception("scheduler tick failed")
-        ticks += 1
-        await asyncio.sleep(tick_seconds)
+    try:
+        ticks = 0
+        while True:
+            try:
+                await jobs.schedule_tick(container, enqueue)
+                await jobs.deliver_notifications(container)
+                if ticks % 10 == 0:
+                    await jobs.expire_subscriptions(container)
+                if ticks % 20 == 5:  # every ~5 minutes: evening summary when it is due
+                    await jobs.daily_digest(container)
+                if ticks % 60 == 7:  # every ~15 minutes: "Oddam za darmo" (one at a time with the checks)
+                    task = asyncio.create_task(gated(jobs.free_scan(container)))
+                    running.add(task)
+                    task.add_done_callback(running.discard)
+                if ticks % 5760 == 1:  # about once a day: drop old data so the state file stays small
+                    await jobs.retention(container)
+            except Exception:
+                log.exception("scheduler tick failed")
+            ticks += 1
+            await asyncio.sleep(tick_seconds)
+    finally:
+        for task in running:
+            task.cancel()
+        await asyncio.gather(*running, return_exceptions=True)
 
 
 async def warm_up_charts() -> None:
@@ -119,10 +133,17 @@ async def main() -> None:
     if not settings.personal_mode:
         settings.enabled_sources = ["mock"]  # demo: never touch real marketplaces
     setup_logging(settings.log_level)
-    repo = MemoryRepository.load(STATE_FILE)
-    log.warning("DEMO MODE: data kept in %s (saved every minute); sources: %s; searches loaded: %s", STATE_FILE,
-                "mock + OLX (personal mode)" if settings.personal_mode else "test source only", len(repo.searches))
+    use_db = settings.storage.lower() == "postgres"
+    sources = "mock + OLX (personal mode)" if settings.personal_mode else "test source only"
+    if use_db:  # same single process, data in PostgreSQL (apply migrations first: alembic upgrade head)
+        repo = None
+        log.warning("DEMO MODE with PostgreSQL storage; sources: %s", sources)
+    else:
+        repo = MemoryRepository.load(STATE_FILE)
+        log.warning("DEMO MODE: data kept in %s (saved every minute); sources: %s; searches loaded: %s", STATE_FILE,
+                    sources, len(repo.searches))
     container = build_container(settings, repo=repo, use_redis=False)
+    repo = container.repo
     await container.subs.seed_plans()
     for plan in await container.repo.list_plans(active_only=False):  # demo: mock checks every minute
         if plan.code != "personal":  # real OLX stays at the personal-mode minimum (10 min)
@@ -143,16 +164,22 @@ async def main() -> None:
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command=c, description=d) for c, d in COMMANDS])
     warm = asyncio.create_task(warm_up_charts())  # noqa: F841 — font cache in background
-    save_on_signals(repo)
+    if not use_db:
+        save_on_signals(repo)
     scheduler = asyncio.create_task(scheduler_loop(container, tick_seconds=15))
-    saver = asyncio.create_task(persist_loop(repo))
+    saver = None if use_db else asyncio.create_task(persist_loop(repo))
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         scheduler.cancel()
-        saver.cancel()
-        repo.dump(STATE_FILE)
-        log.warning("demo state saved to %s", STATE_FILE)
+        if saver is not None:
+            saver.cancel()
+        warm.cancel()
+        await asyncio.gather(scheduler, *([saver] if saver else []), warm, return_exceptions=True)
+        if saver is not None:
+            repo.dump(STATE_FILE)
+            log.warning("demo state saved to %s", STATE_FILE)
+        await container.close()
         await bot.session.close()
 
 

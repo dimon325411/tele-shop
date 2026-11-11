@@ -18,6 +18,7 @@ from app.config import Settings
 from app.domain.models import Notification, NotificationStatus, StoredListing, User
 from app.domain.pricing import PriceStats, price_stats
 from app.domain.sellers import is_new_account
+from app.domain.area import in_area
 from app.domain.timing import Clock, backoff_seconds, in_quiet_hours, local_day_start_utc, quiet_hours_end, utcnow
 from app.services.market import MarketService
 from app.services.subscriptions import SubscriptionService
@@ -103,6 +104,14 @@ class NotificationService:
                                                 count_attempt=False)
             report.cancelled += 1
             return
+        if n.kind.value == 'free':
+            posted = listing.posted_at or listing.first_seen_at
+            if (not user.free_alerts or not user.deal_city or not in_area(user, listing)
+                    or posted is None or now - posted > timedelta(hours=6)):
+                await self.repo.finish_notification(n.id, NotificationStatus.CANCELLED.value, now,
+                                                    'free alert disabled or stale', count_attempt=False)
+                report.cancelled += 1
+                return
         if in_quiet_hours(now, user.quiet_start_hour, user.quiet_end_hour, user.timezone):
             until = quiet_hours_end(now, user.quiet_start_hour, user.quiet_end_hour, user.timezone)
             await self.repo.finish_notification(n.id, NotificationStatus.PENDING.value, now, None,
@@ -127,6 +136,10 @@ class NotificationService:
             search_name = search.name if search else None
         old_price = listing.previous_price if n.kind.value == "price_drop" else None
         stats = None
+        if n.kind.value == 'free':
+            data = n.payload
+            stats = PriceStats(Decimal(data['median']), Decimal(data['p25']), Decimal(data['p75']),
+                               int(data['count']))
         if access.plan.advanced_filters and n.search_id is not None and listing.price is not None:
             stats = await self.comparable_stats(n.search_id, listing, now)
         try:

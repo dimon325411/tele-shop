@@ -22,6 +22,8 @@ services:
       POSTGRES_DB: market
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"  # local only: lets `python -m app.dev_run` with STORAGE=postgres reach the database
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U market -d market"]
       interval: 5s

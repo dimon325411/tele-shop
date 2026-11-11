@@ -14,7 +14,7 @@ from app.presentation import SUSPICIOUS_DISCOUNT, Button, fmt_dt, fmt_posted, fm
 from app.domain.area import area_label, distance_km, in_area
 from app.domain.pricing import price_stats
 from app.domain.timing import local_day_start_utc
-from app.domain.variants import variant_of
+from app.domain.variants import listing_variant, needs_configuration
 from app.services.market import ALL_VARIANTS, is_fresh, usable
 
 DEFAULT_SPREAD = 10
@@ -156,20 +156,21 @@ class Analytics:
             return "\n\n".join(lines), buttons
         cur = esc(market[0].currency or "PLN")
         pct = search.criteria.deal_min_discount or DEFAULT_SPREAD
-        groups: dict[str, list] = {}
-        for m in market:
-            groups.setdefault(variant_of(m.title) or ALL_VARIANTS, []).append(m)
-        variants = sorted((v for v in groups if v != ALL_VARIANTS), key=lambda v: -len(groups[v]))[:STATS_MAX_VARIANTS]
-        keys = variants if variants else [ALL_VARIANTS]
+        groups = await self.market.groups(search.id)
+        variants = sorted((v for v in groups if v != ALL_VARIANTS and 'unknown' not in v),
+                          key=lambda v: -len(groups[v]))[:STATS_MAX_VARIANTS]
+        unknown = [v for v in groups if 'unknown' in v]
+        keys = (variants if variants else ([ALL_VARIANTS] if ALL_VARIANTS in groups else [])) + unknown
         shown: dict[str, object] = {}  # variant -> stats shown in the card (cheapest offers compare to these)
         block: list[str] = []
         one = Decimal("1")
         for key in keys:
-            items = groups[key] if key != ALL_VARIANTS else market
+            items = groups[key]
             label = t("stats.variant_label", lang, variant=fmt_variant(key)) if key != ALL_VARIANTS else ""
-            st = price_stats([m.price for m in items])
+            st = price_stats([m.price for m in items]) if "unknown" not in key else None
             if st is None:
-                block.append(t("stats.few", lang, variant=label, count=len(items)))
+                block.append(t("stats.unknown", lang, count=len(items)) if "unknown" in key
+                             else t("stats.few", lang, variant=label, count=len(items)))
                 continue
             shown[key] = st
             trend = ""
@@ -191,16 +192,18 @@ class Analytics:
         else:
             items = []
             for m in cheapest:
-                st = shown.get(variant_of(m.title) or ALL_VARIANTS) if variants else shown.get(ALL_VARIANTS)
+                key = next((key for key, group in groups.items() if any(x.id == m.id for x in group)), ALL_VARIANTS)
+                st = shown.get(key)
                 diff = f" ({_pct(st.diff_percent(m.price))})" if st else ""
                 if st and st.diff_percent(m.price) <= -SUSPICIOUS_DISCOUNT:
                     diff += " ⚠️"
-                variant = f" · {fmt_variant(variant_of(m.title))}" if variants and variant_of(m.title) else ""
+                variant = f" · {fmt_variant(listing_variant(m))}" if variants and listing_variant(m) else ""
                 items.append(t("stats.cheap_item", lang, price=fmt_price(m.price), cur=cur, diff=diff,
                                variant=variant, url=esc(m.url), title=esc(m.title[:50]),
                                posted=fmt_posted(m, now, user.timezone, lang) + _where(user, m)))
             lines.append(t("stats.cheapest", lang, area=esc(area_label(user) or t("area.whole_poland", lang)))
                          + "\n" + "\n".join(items))
+        lines.append(t("stats.footer", lang))
         return "\n\n".join(lines), buttons
 
 

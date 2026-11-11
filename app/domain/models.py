@@ -39,6 +39,7 @@ class NotificationStatus(str, Enum):
 class NotificationKind(str, Enum):
     NEW = "new"
     PRICE_DROP = "price_drop"
+    FREE = "free"
 
 
 @dataclass
@@ -191,6 +192,7 @@ class Notification:
     price_at_notify: Decimal | None = None
     created_at: datetime | None = None
     sent_at: datetime | None = None
+    payload: dict = field(default_factory=dict)
 
 
 @dataclass

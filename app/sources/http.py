@@ -84,6 +84,8 @@ class PoliteFetcher:
         while True:
             attempt += 1
             async with lock:
+                if self.blocked_for(host) > 0:
+                    raise SourceBlocked(f"{host} in cool-down", max(1, int(self.blocked_for(host))))
                 wait = self._min_interval - (self._monotonic() - self._last_request.get(host, -1e9))
                 if wait > 0:
                     await self._sleep(wait)
@@ -95,16 +97,16 @@ class PoliteFetcher:
                     error: Exception | None = exc
                 else:
                     error = None
-            if resp is not None:
-                if resp.status in (403, 429) or self._looks_like_captcha(resp):
-                    retry_after = self._retry_after(resp) or 3600
-                    self._blocked_until[host] = self._monotonic() + retry_after
-                    raise SourceBlocked(f"{host} answered {resp.status}", retry_after)
-                if 200 <= resp.status < 300:
-                    return resp.text
-                if resp.status < 500:
-                    raise SourceUnavailable(f"{host} answered {resp.status}")
-                error = SourceUnavailable(f"{host} answered {resp.status}")
+                if resp is not None:
+                    if resp.status in (403, 429) or self._looks_like_captcha(resp):
+                        retry_after = self._retry_after(resp) or 3600
+                        self._blocked_until[host] = self._monotonic() + retry_after
+                        raise SourceBlocked(f"{host} answered {resp.status}", retry_after)
+                    if 200 <= resp.status < 300:
+                        return resp.text
+                    if resp.status < 500:
+                        raise SourceUnavailable(f"{host} answered {resp.status}")
+                    error = SourceUnavailable(f"{host} answered {resp.status}")
             if attempt > self._max_retries:
                 raise SourceUnavailable(str(error))
             await self._sleep(backoff_seconds(attempt, base=2.0, cap=30.0, jitter=0.0))

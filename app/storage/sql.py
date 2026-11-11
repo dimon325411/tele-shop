@@ -280,9 +280,18 @@ class SqlRepository:
                          matched=matched, error=error)
 
     # --------------------------------------------------------- notifications
-    async def enqueue_notification(self, user_id, listing_id, search_id, kind, dedup_key, price, next_attempt_at) -> bool:
+    async def get_job_state(self, key):
+        row = await self._one(q.GET_JOB_STATE, key=key)
+        return row['value'] if row else None
+
+    async def save_job_state(self, key, value, now):
+        await self._exec(q.SAVE_JOB_STATE, key=key, value=json.dumps(value), now=now)
+
+    async def enqueue_notification(self, user_id, listing_id, search_id, kind, dedup_key, price, next_attempt_at,
+                                   payload=None) -> bool:
         rows = await self._exec(q.ENQUEUE_NOTIFICATION, user_id=user_id, listing_id=listing_id, search_id=search_id,
-                                kind=kind, dedup_key=dedup_key, price=price, next_attempt_at=next_attempt_at)
+                                kind=kind, dedup_key=dedup_key, price=price, next_attempt_at=next_attempt_at,
+                                payload=json.dumps(payload or {}))
         return bool(rows)
 
     async def claim_notifications(self, now, limit, stale_after_seconds=300) -> list[Notification]:

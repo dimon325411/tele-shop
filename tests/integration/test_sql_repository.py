@@ -29,6 +29,25 @@ async def make_app(repo, **kw) -> App:
     return await App(repo=repo, **kw).setup()
 
 
+async def test_free_notification_and_job_state_survive_repository_recreation(sql_repo):
+    from app.storage.sql import SqlRepository
+    app = await make_app(sql_repo)
+    user = await app.user(111)
+    saved = (await sql_repo.upsert_listing(listing('free', 'Oddam pralkę', '0'), app.clock())).listing
+    payload = {'median': '460', 'p25': '420', 'p75': '480', 'count': 6}
+    assert await sql_repo.enqueue_notification(user.id, saved.id, None, 'free', 'free:test',
+                                              saved.price, app.clock(), payload=payload)
+    await sql_repo.save_job_state('digest:test', {'day': '2026-11-11'}, app.clock())
+    restarted = SqlRepository(sql_repo.engine)
+    assert await restarted.get_job_state('digest:test') == {'day': '2026-11-11'}
+    notifications = await restarted.claim_notifications(app.clock(), 10)
+    assert len(notifications) == 1
+    assert notifications[0].kind.value == 'free'
+    assert notifications[0].payload == payload
+    assert not await restarted.enqueue_notification(user.id, saved.id, None, 'free', 'free:test',
+                                                    saved.price, app.clock(), payload=payload)
+
+
 async def test_full_cycle_no_duplicates(sql_repo):
     app = await make_app(sql_repo)
     user = await app.user(111)
