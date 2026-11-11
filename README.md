@@ -140,3 +140,18 @@ Skrót: `pip install -r requirements.txt`, uzupełnij `.env` i uruchom `python -
 OLX.pl jest czytany w trybie prywatnym, z ograniczoną częstotliwością. Regulamin OLX zabrania agregacji
 danych dla osób trzecich, dlatego wersja komercyjna wymagałaby pisemnej zgody OLX. Adapter Allegro
 Lokalnie jest wyłączony. Szczegóły: `docs/SOURCES.md`.
+
+# Local PostgreSQL and analytics
+
+The macOS user agents installed by `python scripts/install_local_services.py` start the
+private local PostgreSQL socket and bot after login. They create a `pg_dump` backup at
+03:15 and refresh aggregate CSV reports in `data/reports/` at 03:30. Data and database
+binaries are under ignored `data/`; keep this directory when updating the code.
+
+The daily Google Sheets sync runs at 03:45 once `GOOGLE_SHEET_ID` and
+`GOOGLE_CREDENTIALS_FILE` are configured in `.env`. Install `requirements.txt`, create a
+Google service account, and share the report spreadsheet with its `client_email` as an
+Editor. Place the JSON credential file outside Git. Until then, the sync exits without
+changing the existing Sheet. The report contains search-level aggregates only; price
+history before the PostgreSQL migration is represented by `baseline` rows, not inferred
+historical changes.

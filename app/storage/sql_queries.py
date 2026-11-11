@@ -140,6 +140,11 @@ WITH old AS (
 SELECT ins.*, (SELECT price FROM old) AS old_price FROM ins
 """
 GET_LISTING = f"SELECT {LISTING_COLUMNS} FROM listings WHERE id = :id"
+LOCK_LISTING_KEY = "SELECT pg_advisory_xact_lock(hashtextextended(length(:source)::text || ':' || :source || :external_id, 0))"
+INSERT_PRICE_HISTORY = """
+INSERT INTO listing_price_history (listing_id, source, external_id, observed_at, price, currency, kind)
+VALUES (:listing_id, :source, :external_id, :observed_at, :price, :currency, :kind)
+"""
 SET_LISTING_AI_NOTE = "UPDATE listings SET ai_note = :note WHERE id = :id"
 
 ADD_MATCH = """

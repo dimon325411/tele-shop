@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 from decimal import Decimal
+from sqlalchemy import text
 
 import pytest
 
@@ -46,6 +47,59 @@ async def test_free_notification_and_job_state_survive_repository_recreation(sql
     assert notifications[0].payload == payload
     assert not await restarted.enqueue_notification(user.id, saved.id, None, 'free', 'free:test',
                                                     saved.price, app.clock(), payload=payload)
+
+
+async def test_price_history_keeps_baseline_and_changes(sql_repo):
+    from app.storage.sql import SqlRepository
+    now = (await make_app(sql_repo)).clock()
+    await sql_repo.upsert_listing(listing('history', 'Price history', '100'), now)
+    await sql_repo.upsert_listing(listing('history', 'Price history', '100'), now + timedelta(minutes=1))
+    await sql_repo.upsert_listing(listing('history', 'Price history', '80'), now + timedelta(minutes=2))
+    restarted = SqlRepository(sql_repo.engine)
+    async with restarted.engine.connect() as conn:
+        rows = (await conn.execute(text("SELECT price, kind FROM listing_price_history ORDER BY id"))).all()
+    assert rows == [(Decimal('100'), 'initial'), (Decimal('80'), 'change')]
+
+
+async def test_concurrent_equal_price_upserts_write_one_change(sql_repo):
+    now = (await make_app(sql_repo)).clock()
+    await sql_repo.upsert_listing(listing('parallel-price', 'Parallel price', '100'), now)
+    await asyncio.gather(*(sql_repo.upsert_listing(
+        listing('parallel-price', 'Parallel price', '80'), now + timedelta(minutes=1))
+        for _ in range(12)))
+    async with sql_repo.engine.connect() as conn:
+        prices = (await conn.execute(text("""
+            SELECT price FROM listing_price_history
+            WHERE external_id = 'parallel-price' ORDER BY id
+        """))).scalars().all()
+    assert prices == [Decimal('100'), Decimal('80')]
+
+
+async def test_analytics_export_reads_snapshots_and_price_changes(sql_repo, tmp_path):
+    import csv
+    from scripts.export_analytics import export
+    app = await make_app(sql_repo)
+    user = await app.user(222)
+    search = await app.searches.create(user, draft(keywords=['rower']))
+    await app.monitoring.check_search(search.id)
+    app.mock.publish(listing('report', 'Rower test', '100'))
+    await app.monitoring.check_search(search.id)
+    app.mock.set_price('report', Decimal('80'))
+    await app.monitoring.check_search(search.id)
+    async with sql_repo.engine.begin() as conn:
+        await conn.execute(text("""
+            INSERT INTO market_snapshots (search_id, day, variant, count, median, p25, p75, min_price)
+            VALUES (:id, DATE '2020-01-01', 'all', 3, 100, 90, 110, 80)
+        """), {"id": search.id})
+    url = str(sql_repo.engine.url)
+    counts = export(tmp_path, url)
+    assert counts['snapshots'] >= 1
+    with (tmp_path / 'snapshots.csv').open(encoding='utf-8-sig', newline='') as file:
+        rows = list(csv.DictReader(file))
+    assert any(r['day'] == '2020-01-01' and r['search_id'] == str(search.id)
+               and r['listing_count'] == '3' and r['median'] == '100.00' for r in rows)
+    assert counts['price_changes'] == 1
+    assert 'price_drops' in (tmp_path / 'price_changes.csv').read_text()
 
 
 async def test_full_cycle_no_duplicates(sql_repo):

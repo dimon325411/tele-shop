@@ -65,6 +65,8 @@ class Settings(BaseModel):
     personal_mode: bool = False
     # python -m app.dev_run keeps data in: "file" (data/dev_state.pickle) or "postgres" (DATABASE_URL)
     storage: str = "file"
+    google_sheet_id: str = ""
+    google_credentials_file: str = ""
     source_min_request_interval_seconds: float = 10.0
     source_timeout_seconds: float = 15.0
 

@@ -56,6 +56,7 @@ COLUMNS = {
                       "last_error_at", "last_error"],
     "job_state": ["key", "value", "updated_at"],
     "market_snapshots": ["search_id", "day", "variant", "count", "median", "p25", "p75", "min_price"],
+    "listing_price_history": ["listing_id", "source", "external_id", "observed_at", "price", "currency", "kind"],
 }
 SEQUENCES = ["users", "plans", "subscriptions", "searches", "listings", "match_results", "monitoring_runs",
              "notifications"]
@@ -94,6 +95,12 @@ def as_dict(obj) -> dict:
 
 
 def rows_for(repo: MemoryRepository) -> dict[str, list[dict]]:
+    history_ids = {r["listing_id"] for r in repo.price_history}
+    price_history = list(repo.price_history) + [
+        {"listing_id": l.id, "source": l.source, "external_id": l.external_id,
+         "observed_at": l.last_seen_at, "price": l.price, "currency": l.currency, "kind": "baseline"}
+        for l in repo.listings.values() if l.price is not None and l.id not in history_ids
+    ]
     searches = []
     for s in repo.searches.values():
         row = as_dict(s)
@@ -114,6 +121,7 @@ def rows_for(repo: MemoryRepository) -> dict[str, list[dict]]:
         "subscriptions": [as_dict(s) for s in repo.subscriptions.values()],
         "searches": searches,
         "listings": [as_dict(l) for l in repo.listings.values()],
+        "listing_price_history": price_history,
         "match_results": matches,
         "monitoring_runs": runs,
         "notifications": [as_dict(n) for n in repo.notifications.values()

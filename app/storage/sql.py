@@ -259,7 +259,14 @@ class SqlRepository:
     # -------------------------------------------------------------- listings
     async def upsert_listing(self, listing: Listing, now: datetime) -> UpsertResult:
         data = {f.name: getattr(listing, f.name) for f in dc_fields(Listing)}
-        r = await self._one(q.UPSERT_LISTING, now=now, **data)
+        async with self.transaction():
+            await self._exec(q.LOCK_LISTING_KEY, source=listing.source, external_id=listing.external_id)
+            r = await self._one(q.UPSERT_LISTING, now=now, **data)
+            if r["price"] is not None and (r["inserted"] or r["old_price"] != r["price"]):
+                await self._exec(q.INSERT_PRICE_HISTORY, listing_id=r["id"], source=r["source"],
+                                 external_id=r["external_id"], observed_at=now, price=r["price"],
+                                 currency=r["currency"],
+                                 kind="initial" if r["inserted"] or r["old_price"] is None else "change")
         return UpsertResult(_listing(r), bool(r["inserted"]), r["old_price"])
 
     async def get_listing(self, listing_id: int) -> StoredListing | None:

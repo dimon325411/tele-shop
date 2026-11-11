@@ -45,6 +45,7 @@ class MemoryRepository:
         self.subscriptions: dict[int, Subscription] = {}
         self.searches: dict[int, Search] = {}
         self.listings: dict[int, StoredListing] = {}
+        self.price_history: list[dict] = []
         self.listing_keys: dict[tuple[str, str], int] = {}
         self.matches: dict[tuple[int, int], dict] = {}
         self.runs: list[dict] = []
@@ -89,6 +90,7 @@ class MemoryRepository:
             for key, value in state.items():
                 setattr(repo, key, value)
             repo.__dict__.setdefault("snapshots", {})
+            repo.__dict__.setdefault("price_history", [])
             repo.__dict__.setdefault("job_state", {})
             for user_id, day in getattr(repo, 'digest_sent', {}).items():
                 repo.job_state.setdefault(f'digest:{user_id}', {'day': day})
@@ -285,6 +287,10 @@ class MemoryRepository:
             stored = StoredListing(**values, id=self._next("listing"), first_seen_at=now, last_seen_at=now)
             self.listings[stored.id] = stored
             self.listing_keys[key] = stored.id
+            if stored.price is not None:
+                self.price_history.append(dict(listing_id=stored.id, source=stored.source,
+                                               external_id=stored.external_id, observed_at=now,
+                                               price=stored.price, currency=stored.currency, kind="initial"))
             return UpsertResult(_c(stored), True, None)
         stored = self.listings[self.listing_keys[key]]
         old_price = stored.price
@@ -300,6 +306,10 @@ class MemoryRepository:
             stored.previous_price = stored.price
             stored.price = listing.price
             stored.price_changed_at = now
+            self.price_history.append(dict(listing_id=stored.id, source=stored.source,
+                                           external_id=stored.external_id, observed_at=now,
+                                           price=stored.price, currency=stored.currency,
+                                           kind="initial" if old_price is None else "change"))
         return UpsertResult(_c(stored), False, old_price)
 
     async def get_listing(self, listing_id: int) -> StoredListing | None:

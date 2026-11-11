@@ -32,7 +32,8 @@ async def sql_repo():
 
     from app.storage.sql import SqlRepository, make_engine
 
-    db_name = DB_URL.rsplit("/", 1)[1]
+    from sqlalchemy.engine import make_url
+    db_name = make_url(DB_URL).database
     admin = create_async_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
     async with admin.connect() as conn:
         await conn.exec_driver_sql(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)')
